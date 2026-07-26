@@ -1,0 +1,3 @@
+kicad_footprint,option,match_type,tme_parameter,tme_value,notes
+Resistor_SMD:R_0805_2012Metric,default,exact,Case - inch,0805,KiCad 2012 metric / 0805 imperial chip resistor
+Resistor_SMD:R_0805_2012Metric,default,exact,Mounting,SMD,KiCad 2012 metric / 0805 imperial chip resistor

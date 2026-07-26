@@ -1,0 +1,4 @@
+interface:
+  display_name: "Find TME Parts"
+  short_description: "Find stocked TME parts for Poland."
+  default_prompt: "Use $find-tme-parts to find and verify suitable TME parts from this description or CSV."
