@@ -369,6 +369,27 @@ class ReviewAppTests(unittest.TestCase):
         self.assertEqual(row["Final Item Count"], "0")
         self.assertEqual(row["TME Match Status"], "not needed")
 
+    def test_basket_download_excludes_zero_counts_and_uses_ordering_columns(self) -> None:
+        """Download only parts with a positive final count in the ordering format."""
+        review_parts = load_script_module("review_parts")
+        with tempfile.TemporaryDirectory() as directory:
+            final_path = Path(directory) / "bom-final.csv"
+            final_path.write_text(
+                "Reference,Value,Footprint,Qty,TME Symbol,Final Item Count,TME Match Status\n"
+                "R1,10k,Resistor_SMD:R_0402_1005Metric,10,RES-10K,12,approved\n"
+                "D1,red,LED_SMD:LED_0603_1608Metric,1,LED-RED,0,not needed\n",
+                encoding="utf-8",
+            )
+            app = review_parts.create_app(final_path, lambda: "token")
+            response = app.test_client().get("/api/basket.csv")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertEqual(
+            response.get_data(as_text=True),
+            "Reference,TME Part,Final Item Count\r\nR1,RES-10K,12\r\n",
+        )
+
     def test_review_page_serves_the_application_shell(self) -> None:
         """Render an accessible review screen with the essential controls."""
         review_parts = load_script_module("review_parts")
@@ -388,6 +409,7 @@ class ReviewAppTests(unittest.TestCase):
         self.assertIn(b"Unit Price PLN", response.data)
         self.assertIn(b"sort-button", response.data)
         self.assertIn(b"Table settings", response.data)
+        self.assertIn(b"Download basket CSV", response.data)
         self.assertIn(b"bom-final.csv", response.data)
         self.assertNotIn(b"Choose the final BOM", response.data)
 

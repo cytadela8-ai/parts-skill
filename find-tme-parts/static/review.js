@@ -26,6 +26,7 @@ const numericColumns = new Set([
   "Line Total PLN",
   "Unit Price PLN",
 ]);
+const orderingStatuses = new Set(["manually_provided", "approved", "not needed"]);
 
 async function requestJson(url, options) {
   const response = await fetch(url, options);
@@ -389,9 +390,25 @@ function updateColumnVisibility(column) {
   }
 }
 
+function downloadBasket() {
+  const hasUnreviewedRows = state.rows.some(
+    (row) => !orderingStatuses.has(row["TME Match Status"]),
+  );
+  if (
+    hasUnreviewedRows
+    && !window.confirm(
+      "Some rows are not manually provided, approved, or marked not needed. Download anyway?",
+    )
+  ) {
+    return;
+  }
+  window.location.assign("/api/basket.csv");
+}
+
 document.querySelector("#settings-button").addEventListener("click", () => {
   document.querySelector("#settings-dialog").showModal();
 });
+document.querySelector("#download-basket-button").addEventListener("click", downloadBasket);
 
 renderColumnSettings();
 

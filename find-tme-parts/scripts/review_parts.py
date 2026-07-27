@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from review_state import FINAL_COUNT, initialize_final_csv, load_rows, update_row
 from review_tme import fetch_product
@@ -34,6 +36,20 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
     def rows() -> Any:
         loaded_rows, _ = load_rows(final_csv)
         return jsonify({"rows": [{"index": index, **row} for index, row in enumerate(loaded_rows)]})
+
+    @app.get("/api/basket.csv")
+    def basket() -> Response | tuple[Any, int]:
+        """Download the positive-count rows in the minimal ordering format."""
+        try:
+            loaded_rows, _ = load_rows(final_csv)
+            content = basket_csv(loaded_rows)
+        except TmeError as exception:
+            return error(str(exception), 422)
+        response = Response(content, mimetype="text/csv")
+        response.headers["Content-Disposition"] = (
+            f'attachment; filename="{final_csv.stem}-basket.csv"'
+        )
+        return response
 
     @app.get("/api/rows/<int:index>/details")
     def detail(index: int) -> Any:
@@ -143,6 +159,25 @@ def final_line_total(unit_price: str, quantity: str | int) -> str | None:
     except InvalidOperation as error:
         raise TmeError(f"Unit Price PLN '{unit_price}' is not a valid decimal.") from error
     return f"{total:.6f}"
+
+
+def basket_csv(rows: list[dict[str, str]]) -> str:
+    """Serialize positive-count BOM rows for an ordering basket import."""
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=["Reference", "TME Part", FINAL_COUNT])
+    writer.writeheader()
+    for row in rows:
+        count = final_count(row)
+        if count == 0:
+            continue
+        writer.writerow(
+            {
+                "Reference": row.get("Reference", ""),
+                "TME Part": row.get("TME Symbol", ""),
+                FINAL_COUNT: str(count),
+            }
+        )
+    return output.getvalue()
 
 
 def replacement_fields(product: dict[str, object], quantity: int) -> dict[str, str]:
