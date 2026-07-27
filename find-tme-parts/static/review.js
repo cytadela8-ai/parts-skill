@@ -110,6 +110,7 @@ function detailRow(row) {
 function detailPanel(row) {
   const panel = document.createElement("section");
   panel.className = "inline-details";
+  panel.append(aiComment(row));
   const tmeDetails = document.createElement("section");
   tmeDetails.className = "tme-details";
   if (state.detailError) {
@@ -120,9 +121,19 @@ function detailPanel(row) {
   } else {
     tmeDetails.append(detailMessage("Loading current TME details…"));
   }
-  tmeDetails.append(countEditor(row), substitutionEditor(row), approveButton(row));
-  panel.append(tmeDetails, kicadPanel(row));
+  panel.append(tmeDetails, kicadPanel(row), reviewControls(row));
   return panel;
+}
+
+function aiComment(row) {
+  const callout = document.createElement("section");
+  callout.className = "ai-comment";
+  const label = document.createElement("strong");
+  label.textContent = "AI review note";
+  const note = document.createElement("p");
+  note.textContent = row["TME Match Notes"] || "No AI review note was supplied.";
+  callout.append(label, note);
+  return callout;
 }
 
 function kicadPanel(row) {
@@ -136,13 +147,17 @@ function kicadPanel(row) {
     ["Value", row.Value],
     ["Footprint", row.Footprint],
   ];
-  const list = document.createElement("dl");
+  const list = document.createElement("div");
+  list.className = "kicad-fields";
   for (const [label, value] of values) {
-    const name = document.createElement("dt");
+    const field = document.createElement("div");
+    field.className = "kicad-field";
+    const name = document.createElement("strong");
     name.textContent = label;
-    const detail = document.createElement("dd");
+    const detail = document.createElement("span");
     detail.textContent = value || "—";
-    list.append(name, detail);
+    field.append(name, detail);
+    list.append(field);
   }
   panel.append(heading, list);
   return panel;
@@ -211,6 +226,13 @@ function substitutionEditor(row) {
   ].join("");
   form.addEventListener("submit", (event) => substitute(event, row.index));
   return form;
+}
+
+function reviewControls(row) {
+  const controls = document.createElement("section");
+  controls.className = "review-controls";
+  controls.append(countEditor(row), substitutionEditor(row), approveButton(row));
+  return controls;
 }
 
 function approveButton(row) {
