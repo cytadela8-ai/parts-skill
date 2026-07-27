@@ -5,14 +5,22 @@ from __future__ import annotations
 import csv
 import math
 import os
+import sys
 import tempfile
 from argparse import ArgumentTypeError
+from contextlib import contextmanager
 from collections.abc import Mapping
 from pathlib import Path
+from typing import TextIO
 
 from tme_parts import ADDED, REQUIRED, TmeError, positive
 
 FINAL_COUNT = "Final Item Count"
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 
 def final_path(input_path: Path) -> Path:
@@ -55,32 +63,66 @@ def initial_count(quantity: str) -> int:
 def initialize_final_csv(input_path: Path) -> Path:
     """Create the final CSV once and initialize blank final count values."""
     output_path = final_path(input_path)
-    source_path = output_path if output_path.exists() else input_path
-    rows, headers = load_rows(source_path)
-    for column in (*ADDED, FINAL_COUNT):
-        if column not in headers:
-            headers.append(column)
-    changed = not output_path.exists()
-    for row in rows:
-        if not row.get(FINAL_COUNT, "").strip():
-            row[FINAL_COUNT] = str(initial_count(row["Qty"]))
-            changed = True
-    if changed:
-        write_rows(output_path, rows, headers)
+    with csv_lock(output_path):
+        source_path = output_path if output_path.exists() else input_path
+        rows, headers = load_rows(source_path)
+        for column in (*ADDED, FINAL_COUNT):
+            if column not in headers:
+                headers.append(column)
+        changed = not output_path.exists()
+        for row in rows:
+            if not row.get(FINAL_COUNT, "").strip():
+                row[FINAL_COUNT] = str(initial_count(row["Qty"]))
+                changed = True
+        if changed:
+            write_rows(output_path, rows, headers)
     return output_path
 
 
 def update_row(path: Path, index: int, updates: Mapping[str, str]) -> dict[str, str]:
     """Apply a validated set of column values to one final CSV row."""
-    rows, headers = load_rows(path)
-    if not 0 <= index < len(rows):
-        raise TmeError(f"Row index {index} does not exist.")
-    unknown = sorted(set(updates) - set(headers))
-    if unknown:
-        raise TmeError(f"Final CSV has no column(s): {', '.join(unknown)}.")
-    rows[index].update(updates)
-    write_rows(path, rows, headers)
-    return rows[index]
+    with csv_lock(path):
+        rows, headers = load_rows(path)
+        if not 0 <= index < len(rows):
+            raise TmeError(f"Row index {index} does not exist.")
+        unknown = sorted(set(updates) - set(headers))
+        if unknown:
+            raise TmeError(f"Final CSV has no column(s): {', '.join(unknown)}.")
+        rows[index].update(updates)
+        write_rows(path, rows, headers)
+        return rows[index]
+
+
+@contextmanager
+def csv_lock(path: Path):
+    """Serialize final CSV updates across concurrent local web requests."""
+    lock_path = path.with_name(f".{path.name}.lock")
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        acquire_lock(lock_file)
+        try:
+            yield
+        finally:
+            release_lock(lock_file)
+
+
+def acquire_lock(lock_file: TextIO) -> None:
+    """Acquire a whole-file advisory lock using the host platform's stdlib API."""
+    if sys.platform == "win32":
+        lock_file.write("0")
+        lock_file.flush()
+        lock_file.seek(0)
+        msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+
+def release_lock(lock_file: TextIO) -> None:
+    """Release the advisory lock acquired by `acquire_lock`."""
+    if sys.platform == "win32":
+        lock_file.seek(0)
+        msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def write_rows(path: Path, rows: list[dict[str, str]], headers: list[str]) -> None:
