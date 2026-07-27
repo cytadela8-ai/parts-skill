@@ -9,18 +9,20 @@ body { margin: 0; }
 h2, p { margin-top: 0; }
 
 .site-header, .review-layout { max-width: 1800px; margin: auto; padding-inline: 2rem; }
-.review-layout { padding-top: 1rem; }
+.review-layout { padding-top: .5rem; }
 .eyebrow { color: #4660a8; font-size: .75rem; font-weight: 750; letter-spacing: .1em; }
 .eyebrow { text-transform: uppercase; }
 .bom-panel { background: #fff; border: 1px solid #dce2ef; border-radius: 18px; }
 .bom-panel { box-shadow: 0 10px 30px #26375a0c; overflow: hidden; }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; }
-.panel-heading { padding: 1.25rem 1.5rem; }
-.table-wrap { max-height: calc(100vh - 12rem); overflow: auto; }
+.panel-heading { padding: .65rem 1rem; }
+.panel-heading h2 { font-size: 1rem; margin-bottom: 0; }
+.panel-heading .eyebrow { margin-bottom: .15rem; }
+.table-wrap { max-height: calc(100vh - 7rem); overflow: auto; }
 table { border-collapse: collapse; min-width: 1100px; width: 100%; }
 th { background: #f0f3fa; text-align: left; }
 thead th { position: sticky; top: 0; z-index: 2; }
-th, td { border-top: 1px solid #e7ebf3; padding: .8rem 1rem; vertical-align: top; }
+th, td { border-top: 1px solid #e7ebf3; padding: .5rem .7rem; vertical-align: top; }
 .sort-button { background: transparent; border: 0; color: #45516b; cursor: pointer; font: inherit; }
 .sort-button { font-size: .75rem; font-weight: 750; letter-spacing: .05em; padding: 0; }
 .sort-button { text-align: left; text-transform: uppercase; }
@@ -28,21 +30,21 @@ th, td { border-top: 1px solid #e7ebf3; padding: .8rem 1rem; vertical-align: top
 .part-row:hover, .part-row[aria-expanded="true"] { background: #eef3ff; }
 .part-row:focus { outline: 3px solid #7da5ff; outline-offset: -3px; }
 .detail-row > td { background: #f8faff; padding: 0; }
-.inline-details { display: grid; gap: 1.5rem; padding: 1.5rem; }
+.inline-details { display: grid; gap: .75rem; padding: .75rem; }
 .inline-details { grid-template-columns: minmax(0, 1.4fr) minmax(18rem, .8fr); }
-.tme-details, .kicad-details { display: grid; gap: 1rem; }
-.kicad-details { background: #eef3ff; border-radius: 12px; padding: 1.25rem; }
+.tme-details, .kicad-details { display: grid; gap: .5rem; }
+.kicad-details { background: #eef3ff; border-radius: 8px; padding: .75rem; }
 .ai-comment { background: #fff4cf; border-left: 4px solid #d59100; grid-column: 1 / -1; }
-.ai-comment { border-radius: 8px; padding: .85rem 1rem; }
-.ai-comment p { margin: .35rem 0 0; }
-.product-summary { display: flex; gap: 1rem; }
+.ai-comment { border-radius: 6px; padding: .5rem .7rem; }
+.ai-comment p { margin: .15rem 0 0; }
+.product-summary { display: flex; gap: .75rem; }
 .product-photo { align-self: start; background: #fff; border: 1px solid #dce2ef; }
-.product-photo { border-radius: 10px; max-height: 160px; max-width: 200px; object-fit: contain; }
-.review-controls { align-items: end; display: grid; gap: 1rem; grid-column: 1 / -1; }
+.product-photo { border-radius: 8px; max-height: 110px; max-width: 150px; object-fit: contain; }
+.review-controls { align-items: end; display: grid; gap: .75rem; grid-column: 1 / -1; }
 .review-controls { grid-template-columns: minmax(12rem, .7fr) minmax(18rem, 1fr) auto; }
-.editor { align-content: start; display: grid; gap: .5rem; }
-label { display: grid; font-size: .85rem; font-weight: 700; gap: .4rem; }
-input, button { border-radius: 8px; font: inherit; padding: .55rem .65rem; }
+.editor { align-content: start; display: grid; gap: .3rem; }
+label { display: grid; font-size: .8rem; font-weight: 700; gap: .2rem; }
+input, button { border-radius: 6px; font: inherit; padding: .4rem .55rem; }
 input { border: 1px solid #b9c3d8; width: 100%; }
 button { background: #3156ba; border: 1px solid #3156ba; color: #fff; cursor: pointer; }
 button { font-weight: 700; }
@@ -50,7 +52,7 @@ button { font-weight: 700; }
 a { color: #3156ba; font-weight: 700; }
 details { grid-column: 1 / -1; }
 summary { cursor: pointer; font-weight: 750; }
-dl { display: grid; grid-template-columns: minmax(9rem, .7fr) 1.5fr; gap: .5rem .8rem; }
+dl { display: grid; grid-template-columns: minmax(9rem, .7fr) 1.5fr; gap: .25rem .6rem; }
 dt { color: #536079; font-weight: 700; }
 dd { margin: 0; }
 .message { color: #8a2c34; margin: 0; }
