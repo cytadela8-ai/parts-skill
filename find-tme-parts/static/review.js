@@ -85,12 +85,33 @@ function dataRow(row) {
     priceCell(row["Unit Price PLN"]),
     priceCell(finalLineTotal(row)),
     statusCell(row),
+    actionsCell(row),
   );
   element.addEventListener("click", () => selectRow(row.index));
   element.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") selectRow(row.index);
   });
   return element;
+}
+
+function actionsCell(row) {
+  const cell = document.createElement("td");
+  cell.className = "row-actions";
+  cell.append(rowAction("Approve", row.index, "approve"));
+  cell.append(rowAction("Not needed", row.index, "not-needed"));
+  return cell;
+}
+
+function rowAction(label, index, action) {
+  const button = document.createElement("button");
+  button.className = action === "approve" ? "row-approve" : "row-not-needed";
+  button.textContent = label;
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await requestJson(`/api/rows/${index}/${action}`, { method: "POST" });
+    await reloadRows();
+  });
+  return button;
 }
 
 function statusCell(row) {
@@ -107,7 +128,7 @@ function detailRow(row) {
   const rowElement = document.createElement("tr");
   rowElement.className = "detail-row";
   const cell = document.createElement("td");
-  cell.colSpan = 8;
+  cell.colSpan = 9;
   cell.append(detailPanel(row));
   rowElement.append(cell);
   return rowElement;

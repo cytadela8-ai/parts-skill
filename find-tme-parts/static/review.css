@@ -49,6 +49,9 @@ input { border: 1px solid #b9c3d8; width: 100%; }
 button { background: #3156ba; border: 1px solid #3156ba; color: #fff; cursor: pointer; }
 button { font-weight: 700; }
 .approve-button { background: #14633d; border-color: #14633d; }
+.row-actions { white-space: nowrap; }
+.row-actions button { font-size: .75rem; padding: .3rem .45rem; }
+.row-not-needed { background: #6b7280; border-color: #6b7280; margin-left: .35rem; }
 a { color: #3156ba; font-weight: 700; }
 details { grid-column: 1 / -1; }
 summary { cursor: pointer; font-weight: 750; }
@@ -63,6 +66,7 @@ dd { margin: 0; }
 .status-needs_review, .status-needs_attention { background: #fff2cf; color: #7b5000; }
 .status-no_in_stock_match, .status-no_safe_match { background: #fde7e7; color: #8a2c34; }
 .status-candidate_unreviewed { background: #e8edff; color: #354b9b; }
+.status-not_needed { background: #eceff3; color: #4b5563; }
 
 @media (max-width: 800px) {
   .site-header, .review-layout { padding-inline: 1rem; }

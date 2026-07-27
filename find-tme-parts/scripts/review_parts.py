@@ -95,6 +95,23 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
             return error(str(exception), 422)
         return jsonify({"row": {"index": index, **row}})
 
+    @app.post("/api/rows/<int:index>/not-needed")
+    def not_needed(index: int) -> Any:
+        """Persist a row excluded from the final purchase list."""
+        try:
+            row = update_row(
+                final_csv,
+                index,
+                {
+                    FINAL_COUNT: "0",
+                    "TME Match Status": "not needed",
+                    "TME Match Notes": "Marked not needed in the review app.",
+                },
+            )
+        except TmeError as exception:
+            return error(str(exception), 422)
+        return jsonify({"row": {"index": index, **row}})
+
     return app
 
 
@@ -109,9 +126,12 @@ def get_row(path: Path, index: int) -> dict[str, str]:
 def final_count(row: dict[str, str]) -> int:
     """Return the validated persisted count for a CSV row."""
     try:
-        return positive(row[FINAL_COUNT])
-    except (KeyError, argparse.ArgumentTypeError) as exception:
-        raise TmeError("Final Item Count must be a positive integer.") from exception
+        count = int(row[FINAL_COUNT])
+    except (KeyError, ValueError) as exception:
+        raise TmeError("Final Item Count must be a whole number of zero or more.") from exception
+    if count < 0:
+        raise TmeError("Final Item Count must be a whole number of zero or more.")
+    return count
 
 
 def final_line_total(unit_price: str, quantity: str | int) -> str | None:
