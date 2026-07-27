@@ -1,27 +1,39 @@
 ---
 name: find-tme-parts
-description: Find electronic components on TME for delivery to Poland. Use when given a component description, manufacturer part number, BOM, or CSV with Reference, Value, Footprint, and Qty columns and the task requires in-stock TME alternatives, PLN pricing, MOQ-aware quantities, TME links, or validated CSV results.
+description: Use when selecting TME parts for Poland from a component description, MPN, BOM, or CSV.
 ---
 
 # Find TME Parts
 
-Use `scripts/tme_parts.py`; do not create ad hoc `curl` commands or hand-roll TME API requests. The helper authenticates with `.env` credentials, searches TME for Poland, obtains PLN prices and stock, applies an available-stock filter, normalizes MOQ/order multiples, and ranks candidates using payable line cost and the small-order stock rule.
+Use `scripts/tme_parts.py`; do not create ad hoc `curl` commands or hand-roll TME API requests. The
+helper authenticates with `.env` credentials, searches TME for Poland, obtains PLN prices and stock,
+applies an available-stock filter, normalizes MOQ/order multiples, and ranks candidates using
+payable line cost and the 25%-window surplus rule defined below.
+
+In every command below, `<skill-dir>` means the directory containing this `SKILL.md`. For the
+human review app, `<repo-root>` means the parent directory containing `pyproject.toml`.
 
 ## Translate KiCad footprints before selecting parts
 
-Treat `footprint-translations.csv` as the authoritative KiCad-to-TME package mapping. Constraints sharing a `kicad_footprint` and `option` form an AND condition; different options are alternatives. Do not select a CSV-row candidate until it fulfils every constraint in one option.
+Treat `footprint-translations.csv` as the authoritative KiCad-to-TME package mapping. Constraints
+sharing a `kicad_footprint` and `option` form an AND condition; different options are alternatives.
+Do not select a CSV-row candidate until it fulfils every constraint in one option.
 
-When a KiCad footprint has no mapping, first ask TME for package vocabulary in the relevant component search:
+When a KiCad footprint has no mapping, first ask TME for package vocabulary in the relevant
+component search:
 
 ```bash
-python3 <skill-path>/scripts/tme_parts.py discover-footprint \
+python3 <skill-dir>/scripts/tme_parts.py discover-footprint \
   --phrase '10k resistor 1%'
 ```
 
-Compare that vocabulary and the returned sample-product parameters with the KiCad footprint's case, diameter, pitch, mounting, and pin arrangement. For capacitors, use diameter and mounting; **height is never a matching requirement**. When two diameters are allowed, create one option for each permitted diameter. Then append only verified constraints:
+Compare that vocabulary and the returned sample-product parameters with the KiCad footprint's case,
+diameter, pitch, mounting, and pin arrangement. For capacitors, use diameter and mounting;
+**height is never a matching requirement**. When two diameters are allowed, create one option for
+each permitted diameter. Then append only verified constraints:
 
 ```bash
-python3 <skill-path>/scripts/tme_parts.py map-footprint \
+python3 <skill-dir>/scripts/tme_parts.py map-footprint \
   --kicad-footprint 'Resistor_SMD:R_0805_2012Metric' \
   --phrase '10k resistor 1%' \
   --constraint 'Case - inch=0805' \
@@ -29,34 +41,71 @@ python3 <skill-path>/scripts/tme_parts.py map-footprint \
   --notes 'KiCad 2012 metric / 0805 imperial chip resistor'
 ```
 
-Use `--numeric-constraint 'Diameter=5'` for a millimetre diameter verified in a returned product parameter. `map-footprint` validates categorical values against live TME facets and numeric dimensions against live product parameters before it changes the translation file. Do not map a footprint from name similarity alone. If its mechanical equivalence is uncertain, leave it unmapped and report `needs_review`.
+Use `--numeric-constraint 'Diameter=5'` for a millimetre diameter verified in a returned product
+parameter. `map-footprint` validates categorical values against live TME facets and numeric
+dimensions against live product parameters before it changes the translation file. Do not map a
+footprint from name similarity alone. If its mechanical equivalence is uncertain, leave it unmapped
+and report `needs_review`.
 
 ## Inputs
 
-- Treat a full manufacturer part number as an exact-part request. Treat a partial identifier, an `xxx` placeholder, or a family name as a family request.
-- For a generic component, distinguish exact requirements from minimum requirements. Value, function, polarity, footprint, pin arrangement, mounting, and explicitly stated technology are exact. Higher voltage/current/power rating, tighter tolerance, and wider temperature range are acceptable when the input expresses a minimum.
-- Start with a broad category or family phrase and the verified footprint constraints. Narrow the phrase or add TME parameter filters only when the broad result has no cheap candidate that fulfils every requirement.
+- Treat a full manufacturer part number as an exact-part request. Treat a partial identifier, an
+  `xxx` placeholder, or a family name as a family request.
+- For a generic component, distinguish exact requirements from minimum requirements. Value,
+  function, polarity, footprint, pin arrangement, mounting, and explicitly stated technology are
+  exact. Higher voltage/current/power rating, tighter tolerance, and wider temperature range are
+  acceptable when the input expresses a minimum.
+- Start with a broad category or family phrase and the verified footprint constraints. Narrow the
+  phrase or add TME parameter filters only when the broad result has no cheap candidate that fulfils
+  every requirement.
 - For CSV input, require `Reference`, `Value`, `Footprint`, and `Qty`. Preserve other columns.
   A non-empty `TME_SYMBOL` or `TME Symbol` is a manual selection: pass it through with status
   `manually_provided` without TME lookup or review. `TME_SYMBOL` takes precedence if both exist.
-- Treat `Qty` as the requested total. Judge price and stock using `order_quantity`, which accounts for TME MOQ and multiples.
+- Treat `Qty` as the requested total. Judge price and stock using `order_quantity`, which accounts
+  for TME MOQ and multiples.
 
 ## Search and validate one component
 
-Run a broad search first, then inspect the cheapest candidates:
+Run a broad search first, then inspect the ranked candidates:
 
 ```bash
-python3 <skill-path>/scripts/tme_parts.py search \
+python3 <skill-dir>/scripts/tme_parts.py search \
   --phrase '10k ohm resistor 1% 0.1W' --footprint 0402 --qty 25
 ```
 
-The helper returns in-stock candidates with footprint constraints, stock, price breaks, and full parameters. It ranks candidates using the applicable purchase cost and the small-order stock rule. Validate the cheapest candidates in that order. If none fulfils the requested requirements, refine the phrase or use additional TME parameter filters and search again.
+The helper returns in-stock candidates with footprint constraints, stock, price breaks, and full
+parameters. Validate candidates in the helper's ranked order. If none fulfils the requested
+requirements, refine the phrase or use additional TME parameter filters and search again.
 
-Before selecting a candidate, compare its `description` and `parameters` to every stated requirement. Select a technically better part when it fulfils the same function and all exact requirements. **Never select a part whose footprint is not confirmed as an exact match.** A text-only `footprint_match` is not enough: verify the mapped package/case/mounting parameters yourself. If TME does not expose the required footprint or no in-stock candidate has it, report no safe match rather than substituting another footprint.
+Before selecting a candidate, compare its `description` and `parameters` to every stated
+requirement. Select a technically better part when it fulfils the same function and all exact
+requirements. **Never select a part whose footprint is not confirmed as an exact match.** A
+text-only `footprint_match` is not enough: verify the mapped package/case/mounting parameters
+yourself. If TME does not expose the required footprint or no in-stock candidate has it, report no
+safe match rather than substituting another footprint.
 
-For an exact MPN, ensure the returned manufacturer part number exactly matches after normalizing harmless punctuation only. Do not accept a family name, suffix variant, or similar product as exact. For a family request, select the cheapest in-stock family member with the confirmed footprint and stated requirements. Mark it `family_match`, show the requested family and selected MPN, and list any characteristics that were not specified or independently validated.
+For an exact MPN, ensure the returned manufacturer part number exactly matches after normalizing
+harmless punctuation only. Do not accept a family name, suffix variant, or similar product as
+exact. For a family request, use the same ranking hierarchy as any other request and select an
+in-stock family member with the confirmed footprint and stated requirements. Show the requested
+family and selected MPN in `TME Match Notes`, and list any characteristics that were not specified
+or independently validated.
 
-Among candidates with a confirmed footprint, calculate `line_total_pln = order_quantity × unit_price_pln`; TME stock must cover that order quantity. Find the lowest line total, then select the candidate with the largest order quantity whose total is no more than 25% above it. This deliberately favors extra stock when the added spend is modest. Flag commercially suspicious selections for attention—for example, a large surplus, unexpectedly high MOQ, high line total, or an expensive IC order. State why it is suspicious; do not exclude it automatically. Flag any deviation in value, tolerance, voltage/current/power rating, dielectric, temperature grade, packing, or other stated characteristic. When no exact in-stock part exists, select the closest candidate **only if its footprint is exact**, and enumerate every mismatch.
+Apply this ranking hierarchy only after rejecting candidates that fail the technical and footprint
+requirements:
+
+1. Require TME stock to cover the MOQ/multiple-adjusted `order_quantity`.
+2. Calculate `line_total_pln = order_quantity × unit_price_pln` and find the lowest line total.
+3. Keep candidates whose line total is no more than 25% above that minimum.
+4. From that set, select the candidate with the largest `order_quantity`. Break ties by lower line
+   total, then TME symbol.
+
+This deliberately favors more purchased units when the added spend is modest. Flag commercially
+suspicious selections for attention—for example, a large surplus, unexpectedly high MOQ, high line
+total, or an expensive IC order. State why it is suspicious; do not exclude it automatically. Flag
+any deviation in value, tolerance, voltage/current/power rating, dielectric, temperature grade,
+packing, or other stated characteristic. When no exact in-stock part exists, select the closest
+candidate **only if its footprint is exact**, and enumerate every mismatch.
 
 ## Report a single part
 
@@ -64,7 +113,8 @@ State whether it is exact or a closest alternative. Include:
 
 - TME product number (`symbol`) and manufacturer part number (`manufacturer_part_numbers`)
 - TME product link (`product_url`)
-- PLN unit price, payable line total, requested quantity, MOQ/multiple-adjusted order quantity, excess quantity, and stock
+- PLN unit price, payable line total, requested quantity, MOQ/multiple-adjusted order quantity,
+  excess quantity, and stock
 - A concise risk/attention note, including anything not independently validated
 
 Do not claim that a requirement matches merely because it was absent from TME data.
@@ -74,37 +124,89 @@ Do not claim that a requirement matches merely because it was absent from TME da
 Create an initial enriched file with the helper:
 
 ```bash
-python3 <skill-path>/scripts/tme_parts.py csv input.csv --output tme-results.csv
+python3 <skill-dir>/scripts/tme_parts.py csv input.csv --output tme-results.csv
 ```
 
-## Launch the local review app
+Use this AI processing loop. **Do not launch or use the review app during this loop.**
 
-When the user wants to review an AI-processed CSV, start the app:
+1. Run the helper over the complete original CSV. It validates headers and quantities, preserves
+   row order and all original columns, and adds TME result columns. Manual-symbol rows are marked
+   `manually_provided` without lookup. For every other row, a missing footprint mapping becomes
+   `needs_review`; it never falls back to matching the raw KiCad footprint string.
+2. Review every row that is not `manually_provided` or `validated_match`. Determine whether the
+   cause is a missing or incorrect footprint mapping, an incorrect component type or search phrase,
+   a helper/API limitation, or genuinely no suitable in-stock part.
+3. For every initial `no_in_stock_match`, and whenever the helper's candidate has the wrong
+   component type or fails a stated requirement, make one recovery call to `search`. Use a corrected
+   phrase that names the component type and important requirements, the mapped TME package/case
+   value, and the row quantity:
 
-```bash
-uv run --project <skill-path> <skill-path>/find-tme-parts/scripts/review_parts.py \
-  tme-results.csv
-```
+   ```bash
+   python3 <skill-dir>/scripts/tme_parts.py search \
+     --phrase '<corrected component phrase>' --footprint '<mapped package>' --qty <Qty>
+   ```
 
-Use this full loop:
+   Inspect the returned description and parameters. Set `no_in_stock_match` only when this recovery
+   search returns no priced in-stock candidate. If it returns candidates but none is safe, use
+   `no_safe_match` and explain why. Never convert a wrong automatic candidate directly to
+   `no_in_stock_match` without this recovery search.
+4. When a safe reusable improvement exists, add verified translation constraints or update the
+   helper. Do not change a mapping merely to make a candidate appear valid.
+5. Rerun the helper over the complete original CSV, not an earlier result CSV, then review every row
+   again.
+6. Review every `candidate_unreviewed` and `needs_attention` row against the returned description
+   and parameters. Use `validated_match` only after checking component type, value, ratings,
+   footprint, and MPN/family interpretation. Keep `needs_attention` only for a technically validated
+   but commercially suspicious choice. Otherwise use `needs_review`, `no_safe_match`, or
+   `no_in_stock_match` according to the definitions below.
+7. Repeat while a concrete safe improvement remains. Do not return a CSV containing
+   `candidate_unreviewed`.
 
-1. Run the helper over the complete original CSV. It validates headers and quantities, preserves row order and all original columns, and adds TME result columns. Manual-symbol rows are marked `manually_provided` without lookup. For every other row, a missing footprint mapping becomes `needs_review`; it never falls back to matching the raw KiCad footprint string.
-2. Review every row that is not a validated match. Determine whether the cause is a missing or incorrect footprint mapping, insufficient search interpretation, a helper/API limitation, or genuinely no suitable in-stock part.
-3. When a safe reusable improvement exists, add verified translation constraints or update the helper. Do not change a mapping merely to make a candidate appear valid.
-4. Rerun the helper over the complete original CSV, not an earlier result CSV, then review every row again.
-5. Review every `candidate_unreviewed` row against the returned description and parameters before considering the CSV final. Change it to a validated match only when its component type, value, ratings, footprint, and MPN/family interpretation have been checked. Otherwise change it to `needs_review` or `no_safe_match` with the specific reason.
-6. Repeat while a concrete safe improvement remains. Otherwise preserve a precise `needs_review`, `no_safe_match`, or `no_in_stock_match` explanation.
+Final AI status meanings:
 
-Use `family_match` for a partial IC identifier/family result. Use `needs_attention` for commercially suspicious but otherwise valid choices. Do not return an unreviewed CSV as a final recommendation.
+- `manually_provided`: supplied by the input CSV; passed through without AI or helper validation.
+- `validated_match`: technically validated by the AI, including a valid family member when the
+  request was for a family.
+- `needs_attention`: technically validated, but commercially suspicious.
+- `needs_review`: unresolved because the input, footprint mapping, geometry, or API data is
+  insufficient.
+- `no_safe_match`: the searches returned candidates, but none could be selected safely.
+- `no_in_stock_match`: the required recovery search returned no priced in-stock candidate.
+
+`candidate_unreviewed` is temporary helper output and is never valid in a final AI-processed CSV.
 
 ## Give a post-processing summary in chat
 
-After the final CSV review, give a concise summary in chat. Include the output path, number of loop iterations, and counts for manually provided rows, validated matches, `family_match`, `needs_attention`, `needs_review`, `no_safe_match`, and `no_in_stock_match`.
+After the final CSV review, give a concise summary in chat. Include the output path, number of loop
+iterations, and counts for `manually_provided`, `validated_match`, `needs_attention`,
+`needs_review`, `no_safe_match`, and `no_in_stock_match`.
 
-For every row needing review or other user action, list the reference designator, selected TME symbol if any, and the specific reason. Do not merely repeat a generic CSV note such as "verify requirements". Explain the unresolved point: missing footprint mapping, uncertain package geometry, wrong or uncertain component type, value/rating mismatch, partial-MPN family selection, unavailable stock, ambiguous BOM value, or an API limitation.
+For every row needing review or other user action, list the reference designator, selected TME
+symbol if any, and the specific reason. Do not merely repeat a generic CSV note such as "verify
+requirements". Explain the unresolved point: missing footprint mapping, uncertain package geometry,
+wrong or uncertain component type, value/rating mismatch, partial-MPN family selection, unavailable
+stock, ambiguous BOM value, or an API limitation.
 
-Add an **additional findings** section for material facts not represented by the CSV columns: suspicious MOQ/line cost, excess quantity, plausible alternatives rejected and why, TME rate limiting or incomplete API data, and assumptions made from an incomplete BOM description. Call out any unreviewed candidate explicitly; it is not approved for ordering.
+Add an **additional findings** section for material facts not represented by the CSV columns:
+suspicious MOQ/line cost, excess quantity, plausible alternatives rejected and why, TME rate
+limiting or incomplete API data, and assumptions made from an incomplete BOM description. Call out
+any unreviewed candidate explicitly; it is not approved for ordering.
+
+## Launch the human review app at the end
+
+The review app is for the human, after the AI processing loop and chat summary are complete. Do not
+use it to search, validate, or change statuses during the AI loop. Start it only when the user asks
+to review the completed AI-processed CSV:
+
+```bash
+uv run --project <repo-root> <skill-dir>/scripts/review_parts.py tme-results.csv
+```
+
+The app owns the human review statuses `approved`, `not needed`, and `manually_substituted`. These
+are separate from the final AI statuses above.
 
 ## Credentials and failures
 
-Read `APP_TOKEN` and `APP_SECRET` from a local `.env` file or the process environment. Never print, copy, commit, or include credentials in output. Explain authentication, network, or TME API errors and stop; do not fabricate part, price, or stock data.
+Read `APP_TOKEN` and `APP_SECRET` from a local `.env` file or the process environment. Never print,
+copy, commit, or include credentials in output. Explain authentication, network, or TME API errors
+and stop; do not fabricate part, price, or stock data.
