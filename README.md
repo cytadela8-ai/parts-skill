@@ -53,6 +53,11 @@ CSV input must contain `Reference`, `Value`, `Footprint`, and `Qty` columns. Oth
 preserved. `Qty` is the requested total; the helper adjusts the order quantity for TME minimums
 and multiples.
 
+To keep a manually chosen part, add either a `TME_SYMBOL` or `TME Symbol` column with its TME
+symbol. The helper preserves the supplied symbol, sets its status to `manually_provided`, and does
+not perform footprint validation or TME lookup for that row. When both columns are present,
+`TME_SYMBOL` takes precedence.
+
 Rows without a verified footprint mapping are marked `needs_review`. Results marked
 `candidate_unreviewed` must be checked against the returned TME description and parameters
 before ordering. The helper does not approve a substitute with an unconfirmed footprint.

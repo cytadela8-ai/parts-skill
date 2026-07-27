@@ -37,6 +37,8 @@ Use `--numeric-constraint 'Diameter=5'` for a millimetre diameter verified in a 
 - For a generic component, distinguish exact requirements from minimum requirements. Value, function, polarity, footprint, pin arrangement, mounting, and explicitly stated technology are exact. Higher voltage/current/power rating, tighter tolerance, and wider temperature range are acceptable when the input expresses a minimum.
 - Start with a broad category or family phrase and the verified footprint constraints. Narrow the phrase or add TME parameter filters only when the broad result has no cheap candidate that fulfils every requirement.
 - For CSV input, require `Reference`, `Value`, `Footprint`, and `Qty`. Preserve other columns.
+  A non-empty `TME_SYMBOL` or `TME Symbol` is a manual selection: pass it through with status
+  `manually_provided` without TME lookup or review. `TME_SYMBOL` takes precedence if both exist.
 - Treat `Qty` as the requested total. Judge price and stock using `order_quantity`, which accounts for TME MOQ and multiples.
 
 ## Search and validate one component
@@ -77,7 +79,7 @@ python3 <skill-path>/scripts/tme_parts.py csv input.csv --output tme-results.csv
 
 Use this full loop:
 
-1. Run the helper over the complete original CSV. It validates headers and quantities, preserves row order and all original columns, and adds TME result columns. A missing footprint mapping becomes `needs_review`; it never falls back to matching the raw KiCad footprint string.
+1. Run the helper over the complete original CSV. It validates headers and quantities, preserves row order and all original columns, and adds TME result columns. Manual-symbol rows are marked `manually_provided` without lookup. For every other row, a missing footprint mapping becomes `needs_review`; it never falls back to matching the raw KiCad footprint string.
 2. Review every row that is not a validated match. Determine whether the cause is a missing or incorrect footprint mapping, insufficient search interpretation, a helper/API limitation, or genuinely no suitable in-stock part.
 3. When a safe reusable improvement exists, add verified translation constraints or update the helper. Do not change a mapping merely to make a candidate appear valid.
 4. Rerun the helper over the complete original CSV, not an earlier result CSV, then review every row again.
@@ -88,7 +90,7 @@ Use `family_match` for a partial IC identifier/family result. Use `needs_attenti
 
 ## Give a post-processing summary in chat
 
-After the final CSV review, give a concise summary in chat. Include the output path, number of loop iterations, and counts for validated matches, `family_match`, `needs_attention`, `needs_review`, `no_safe_match`, and `no_in_stock_match`.
+After the final CSV review, give a concise summary in chat. Include the output path, number of loop iterations, and counts for manually provided rows, validated matches, `family_match`, `needs_attention`, `needs_review`, `no_safe_match`, and `no_in_stock_match`.
 
 For every row needing review or other user action, list the reference designator, selected TME symbol if any, and the specific reason. Do not merely repeat a generic CSV note such as "verify requirements". Explain the unresolved point: missing footprint mapping, uncertain package geometry, wrong or uncertain component type, value/rating mismatch, partial-MPN family selection, unavailable stock, ambiguous BOM value, or an API limitation.
 

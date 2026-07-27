@@ -612,10 +612,25 @@ def enrich(
     rows, headers = bom(input_path)
     fieldnames = [*headers, *[name for name in ADDED if name not in headers]]
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
+    with output_path.open("w", encoding="utf-8", newline="", buffering=1) as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
+            manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get(
+                "TME Symbol", ""
+            ).strip()
+            if manual_symbol:
+                writer.writerow(
+                    {
+                        **row,
+                        "TME Symbol": manual_symbol,
+                        "TME Match Status": "manually_provided",
+                        "TME Match Notes": (
+                            "TME symbol was provided manually and not reviewed by the helper."
+                        ),
+                    }
+                )
+                continue
             options = load_footprint_options(translation_file, row["Footprint"])
             if not options:
                 writer.writerow(

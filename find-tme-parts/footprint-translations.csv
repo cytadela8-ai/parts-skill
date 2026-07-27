@@ -1,3 +1,25 @@
 kicad_footprint,option,match_type,tme_parameter,tme_value,notes
 Resistor_SMD:R_0805_2012Metric,default,exact,Case - inch,0805,KiCad 2012 metric / 0805 imperial chip resistor
 Resistor_SMD:R_0805_2012Metric,default,exact,Mounting,SMD,KiCad 2012 metric / 0805 imperial chip resistor
+Capacitor_SMD:C_2220_5750Metric,default,exact,Case - inch,2220,KiCad 5750 metric / 2220 imperial MLCC
+Capacitor_SMD:C_2220_5750Metric,default,exact,Mounting,SMD,KiCad 5750 metric / 2220 imperial MLCC
+Capacitor_SMD:C_0805_2012Metric,default,exact,Case - inch,0805,KiCad 2012 metric / 0805 imperial MLCC
+Capacitor_SMD:C_0805_2012Metric,default,exact,Mounting,SMD,KiCad 2012 metric / 0805 imperial MLCC
+Diode_SMD:D_MiniMELF,default,exact,Case,MiniMELF plastic,KiCad MiniMELF SMD diode footprint
+Diode_SMD:D_MiniMELF,default,exact,Mounting,SMD,KiCad MiniMELF SMD diode footprint
+Package_TO_SOT_SMD:TO-252-3_TabPin2,default,exact,Case,TO252,KiCad TO-252 3-pin DPAK with tab as pin 2
+Package_TO_SOT_SMD:TO-252-3_TabPin2,default,exact,Mounting,SMD,KiCad TO-252 3-pin DPAK with tab as pin 2
+Package_SO:TSSOP-14_4.4x5mm_P0.65mm,default,exact,Case,TSSOP14,"KiCad TSSOP-14, 0.65 mm pitch"
+Package_SO:TSSOP-14_4.4x5mm_P0.65mm,default,exact,Mounting,SMD,"KiCad TSSOP-14, 0.65 mm pitch"
+Package_TO_SOT_SMD:SOT-143,default,exact,Case,SOT143,KiCad SOT-143 4-pin package
+Package_TO_SOT_SMD:SOT-143,default,exact,Mounting,SMD,KiCad SOT-143 4-pin package
+Package_TO_SOT_SMD:SOT-23-5,default,exact,Case,SOT23-5,KiCad SOT-23-5 package
+Package_TO_SOT_SMD:SOT-23-5,default,exact,Mounting,SMD,KiCad SOT-23-5 package
+Button_Switch_SMD:SW_SPST_B3S-1000,default,exact,Mounting,SMT,Omron B3S-1000 SMT tactile switch
+Button_Switch_SMD:SW_SPST_B3S-1000,default,exact,Body dimensions,6x6mm,Omron B3S-1000 SMT tactile switch
+Potentiometer_SMD:Potentiometer_Bourns_3269W_Vertical,default,exact,Mounting,SMD,Bourns 3269W vertical SMD trimmer
+Potentiometer_SMD:Potentiometer_Bourns_3269W_Vertical,default,exact,Body dimensions,7.5x6.3x4.3mm,Bourns 3269W vertical SMD trimmer
+Diode_SMD:D_SMB,default,exact,Case,SMB,KiCad SMB diode footprint
+Diode_SMD:D_SMB,default,exact,Mounting,SMD,KiCad SMB diode footprint
+Package_TO_SOT_SMD:TO-252-2,default,exact,Case,DPAK,KiCad two-terminal DPAK footprint; exact-MPN check remains required
+Package_TO_SOT_SMD:TO-252-2,default,exact,Mounting,SMD,KiCad two-terminal DPAK footprint; exact-MPN check remains required

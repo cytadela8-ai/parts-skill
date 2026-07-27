@@ -1,9 +1,12 @@
 """Behavior tests for KiCad-to-TME footprint translations."""
 
+import csv
 import importlib.util
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT_PATH = Path(__file__).parents[1] / "find-tme-parts" / "scripts" / "tme_parts.py"
@@ -73,6 +76,111 @@ class FootprintOptionsTests(unittest.TestCase):
             header,
             "kicad_footprint,option,match_type,tme_parameter,tme_value,notes",
         )
+
+
+class CsvEnrichmentTests(unittest.TestCase):
+    """Verify CSV enrichment reports completed work while later lookups run."""
+
+    def test_flushes_completed_rows_while_a_later_search_is_running(self) -> None:
+        """Make partial results visible instead of leaving a zero-byte output file."""
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            input_path = directory_path / "input.csv"
+            output_path = directory_path / "output.csv"
+            translation_path = directory_path / "translations.csv"
+            input_path.write_text(
+                "Reference,Value,Footprint,Qty\n"
+                "R1,unmapped,Missing:Footprint,1\n"
+                "R2,10k,Test:Footprint,1\n",
+                encoding="utf-8",
+            )
+            translation_path.write_text(
+                "kicad_footprint,option,match_type,tme_parameter,tme_value,notes\n"
+                "Test:Footprint,default,exact,Mounting,SMD,\n",
+                encoding="utf-8",
+            )
+            search_started = threading.Event()
+            allow_search_to_finish = threading.Event()
+
+            def delayed_search(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+                search_started.set()
+                allow_search_to_finish.wait(timeout=2)
+                return []
+
+            with mock.patch.object(tme_parts, "search", side_effect=delayed_search):
+                worker = threading.Thread(
+                    target=tme_parts.enrich,
+                    args=(input_path, output_path, "token", translation_path),
+                )
+                worker.start()
+                self.assertTrue(search_started.wait(timeout=1))
+                partial_output = output_path.read_text(encoding="utf-8")
+                allow_search_to_finish.set()
+                worker.join(timeout=1)
+
+        self.assertIn("R1,unmapped,Missing:Footprint,1", partial_output)
+
+
+class ManualTmeSymbolTests(unittest.TestCase):
+    """Verify manually supplied TME symbols bypass enrichment."""
+
+    def test_passes_through_tme_symbol_without_searching(self) -> None:
+        """Keep a manual display-name symbol without treating it as a candidate."""
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            input_path = directory_path / "input.csv"
+            output_path = directory_path / "output.csv"
+            mapping_path = directory_path / "footprint-translations.csv"
+            input_path.write_text(
+                "Reference,Value,Footprint,Qty,TME Symbol\n"
+                "R1,10k,Resistor_SMD:R_0402_1005Metric,1,MANUAL-0402\n",
+                encoding="utf-8",
+            )
+            mapping_path.write_text(
+                "kicad_footprint,option,match_type,tme_parameter,tme_value,notes\n"
+                "Resistor_SMD:R_0402_1005Metric,default,exact,Mounting,SMD,test\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(tme_parts, "search", return_value=[]) as search:
+                tme_parts.enrich(input_path, output_path, "unused", mapping_path)
+
+            with output_path.open(encoding="utf-8", newline="") as file:
+                result = next(csv.DictReader(file))
+
+        self.assertEqual(result["TME Symbol"], "MANUAL-0402")
+        self.assertEqual(result["TME Match Status"], "manually_provided")
+        self.assertIn("not reviewed", result["TME Match Notes"].lower())
+        search.assert_not_called()
+
+    def test_passes_through_tme_symbol_identifier_without_searching(self) -> None:
+        """Accept the machine-style manual-symbol header as an override."""
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            input_path = directory_path / "input.csv"
+            output_path = directory_path / "output.csv"
+            mapping_path = directory_path / "footprint-translations.csv"
+            input_path.write_text(
+                "Reference,Value,Footprint,Qty,TME_SYMBOL\n"
+                "R1,10k,Resistor_SMD:R_0402_1005Metric,1,MANUAL-0402\n",
+                encoding="utf-8",
+            )
+            mapping_path.write_text(
+                "kicad_footprint,option,match_type,tme_parameter,tme_value,notes\n"
+                "Resistor_SMD:R_0402_1005Metric,default,exact,Mounting,SMD,test\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(tme_parts, "search", return_value=[]) as search:
+                tme_parts.enrich(input_path, output_path, "unused", mapping_path)
+
+            with output_path.open(encoding="utf-8", newline="") as file:
+                result = next(csv.DictReader(file))
+
+        self.assertEqual(result["TME Symbol"], "MANUAL-0402")
+        self.assertEqual(result["TME Match Status"], "manually_provided")
+        self.assertIn("not reviewed", result["TME Match Notes"].lower())
+        search.assert_not_called()
 
 
 if __name__ == "__main__":
