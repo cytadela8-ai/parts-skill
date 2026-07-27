@@ -1,0 +1,105 @@
+"""Fetch and normalize TME records for the local BOM review interface."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, cast
+from urllib.parse import quote
+
+from tme_parts import TmeError, details, order_qty, params, products, unit_price
+
+
+def product_records(symbol: str, token: str) -> dict[str, Any]:
+    """Load product, parameter, and current stock and price records for a TME symbol."""
+    matches = products(symbol, "", token, 20)
+    product = next(
+        (item for item in matches if str(item.get("symbol", "")).upper() == symbol.upper()),
+        None,
+    )
+    if product is None:
+        raise TmeError(f"TME product '{symbol}' was not found.")
+    actual_symbol = str(product["symbol"])
+    parameter_data = details([actual_symbol], token, "/products/parameters", [])
+    data = details(
+        [actual_symbol],
+        token,
+        "/products/data",
+        [("currency", "PLN"), ("scope[]", "stock"), ("scope[]", "prices")],
+    )
+    return {
+        "product": product,
+        "parameters": params(parameter_data.get(actual_symbol, {})),
+        "data": data.get(actual_symbol, {}),
+    }
+
+
+def fetch_product(symbol: str, quantity: int, token: str) -> dict[str, object]:
+    """Return a presentation-ready product record with its price at `quantity`."""
+    cleaned_symbol = symbol.strip()
+    if not cleaned_symbol:
+        raise TmeError("A replacement TME symbol is required.")
+    records = product_records(cleaned_symbol, token)
+    product = records["product"]
+    if not isinstance(product, Mapping):
+        raise TmeError(f"TME returned an invalid product record for '{cleaned_symbol}'.")
+    ordered_quantity = order_qty(product, quantity)
+    data = records["data"]
+    if not isinstance(data, Mapping):
+        raise TmeError(f"TME returned no stock and price data for '{cleaned_symbol}'.")
+    price = unit_price(data, ordered_quantity)
+    if price is None:
+        raise TmeError(f"TME returned no PLN price for '{cleaned_symbol}'.")
+    tme_symbol = str(product.get("symbol", cleaned_symbol))
+    raw_parameters = records["parameters"]
+    parameters = (
+        [cast(Mapping[str, object], item) for item in raw_parameters if isinstance(item, Mapping)]
+        if isinstance(raw_parameters, list)
+        else []
+    )
+    return {
+        "symbol": tme_symbol,
+        "description": str(product.get("description", "")),
+        "manufacturer_part_number": "; ".join(
+            str(value) for value in product.get("manufacturer_symbols", [])
+        ),
+        "product_url": f"https://www.tme.eu/pl/details/{quote(tme_symbol.lower(), safe='')}/",
+        "datasheet_url": datasheet_url(product),
+        "parameters": normalize_parameters(parameters),
+        "unit_price_pln": f"{price:.6f}",
+        "line_total_pln": f"{price * ordered_quantity:.6f}",
+        "order_qty": str(ordered_quantity),
+        "excess_qty": str(ordered_quantity - quantity),
+        "stock_qty": str(int(data.get("stock_quantity") or 0)),
+    }
+
+
+def normalize_parameters(parameters: list[Mapping[str, object]]) -> list[dict[str, str]]:
+    """Convert TME's nested parameter values into simple display rows."""
+    normalized: list[dict[str, str]] = []
+    for parameter in parameters:
+        values = parameter.get("values", [])
+        if not isinstance(values, list):
+            continue
+        rendered_values: list[str] = []
+        for raw_value in values:
+            if not isinstance(raw_value, Mapping):
+                continue
+            value = cast(Mapping[str, object], raw_value).get("value")
+            if value:
+                rendered_values.append(str(value))
+        normalized.append(
+            {
+                "name": str(parameter.get("name", "")),
+                "value": ", ".join(rendered_values),
+            }
+        )
+    return normalized
+
+
+def datasheet_url(product: Mapping[str, object]) -> str:
+    """Return the first documented datasheet URL exposed by a TME product record."""
+    for key in ("datasheet_url", "datasheet", "datasheetUrl"):
+        value = product.get(key)
+        if isinstance(value, str) and value.startswith(("https://", "http://")):
+            return value
+    return ""

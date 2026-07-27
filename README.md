@@ -7,7 +7,7 @@ by payable line cost.
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.13 or newer and [uv](https://docs.astral.sh/uv/)
 - TME API credentials: `APP_TOKEN` and `APP_SECRET`
 
 Credentials can be exported in the environment or placed in a local `.env` file. Start from
@@ -44,6 +44,27 @@ python3 find-tme-parts/scripts/tme_parts.py csv input.csv \
   --output tme-results.csv
 ```
 
+## Review a final BOM
+
+After an AI has processed an enriched CSV, launch the local review app with:
+
+```bash
+uv run --project <skill-path> <skill-path>/find-tme-parts/scripts/review_parts.py \
+  AI_RESULTS.csv
+```
+
+For this repository, `<skill-path>` is the repository root. The app opens at
+`http://127.0.0.1:5000`; use `--port 5050` to choose a different local port.
+
+On the first launch, it creates a sibling `AI_RESULTS-final.csv`. This file is the app's persistent
+state: it preserves the original data, selected substitutes, and manual edits across launches. The
+app adds `Final Item Count`, initialized to the larger of one extra unit or 15% extra, rounded up.
+It never recalculates a non-empty value, so manual count edits persist.
+
+Select a row to load its current TME description and properties, with product and datasheet links
+when supplied by TME. Paste a replacement TME symbol to fetch and save its current product, price,
+and stock fields. The app marks this selection `manually_substituted`.
+
 For numeric dimensions, use `--numeric-constraint`, for example
 `--numeric-constraint 'Diameter=5'`.
 
@@ -69,14 +90,19 @@ find-tme-parts/
 ├── SKILL.md                         # Agent workflow and selection rules
 ├── agents/openai.yaml               # Skill metadata for Codex
 ├── footprint-translations.csv       # Verified KiCad-to-TME mappings
-└── scripts/tme_parts.py              # TME API helper and CLI
+├── scripts/tme_parts.py              # TME API helper and CLI
+├── scripts/review_parts.py           # Flask BOM review CLI and API
+├── scripts/review_state.py           # Persistent final CSV operations
+├── scripts/review_tme.py             # TME detail normalization
+├── templates/review.html             # Review page
+└── static/                           # CSS and browser-side interaction
 tests/test_tme_parts.py              # Behavior tests for footprint mappings
 ```
 
 Run the tests with:
 
 ```bash
-python3 -m unittest discover -s tests -q
+uv run python -m unittest discover -s tests -q
 ```
 
 API failures, authentication errors, and missing credentials stop the helper with an actionable

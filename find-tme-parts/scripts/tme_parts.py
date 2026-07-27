@@ -103,12 +103,8 @@ def credentials(env_file: Path) -> tuple[str, str]:
     return token, secret
 
 
-def request(
-    url: str, headers: Mapping[str, str], data: bytes | None = None
-) -> dict[str, Any]:
-    req = Request(
-        url, data=data, headers=dict(headers), method="POST" if data else "GET"
-    )
+def request(url: str, headers: Mapping[str, str], data: bytes | None = None) -> dict[str, Any]:
+    req = Request(url, data=data, headers=dict(headers), method="POST" if data else "GET")
     try:
         with urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode("utf-8"))
@@ -176,7 +172,7 @@ def load_footprint_options(
     try:
         with translation_file.open(encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
-            headers = reader.fieldnames or []
+            headers = [str(header) for header in reader.fieldnames or []]
             if tuple(headers) != TRANSLATION_COLUMNS:
                 raise TmeError(
                     "Footprint translation CSV must have columns: "
@@ -198,9 +194,7 @@ def load_footprint_options(
         raise TmeError(f"Could not read footprint translation CSV: {error}") from error
 
 
-def constraint_matches(
-    parameter: Mapping[str, Any], match_type: str, expected: str
-) -> bool:
+def constraint_matches(parameter: Mapping[str, Any], match_type: str, expected: str) -> bool:
     """Match an exact term or a millimetre-valued TME parameter."""
     for value in nested(parameter, "values"):
         actual = str(value.get("value", ""))
@@ -208,11 +202,7 @@ def constraint_matches(
             return True
         if match_type == "numeric_mm":
             number = re.search(r"\d+(?:[.,]\d+)?", actual)
-            if (
-                number
-                and abs(float(number.group().replace(",", ".")) - float(expected))
-                < 0.01
-            ):
+            if number and abs(float(number.group().replace(",", ".")) - float(expected)) < 0.01:
                 return True
     return False
 
@@ -223,16 +213,10 @@ def has_footprint_option(
     """Confirm every constraint in one footprint option."""
     for match_type, expected_name, expected_value in option:
         parameter = next(
-            (
-                item
-                for item in parameters
-                if norm(str(item.get("name", ""))) == norm(expected_name)
-            ),
+            (item for item in parameters if norm(str(item.get("name", ""))) == norm(expected_name)),
             None,
         )
-        if parameter is None or not constraint_matches(
-            parameter, match_type, expected_value
-        ):
+        if parameter is None or not constraint_matches(parameter, match_type, expected_value):
             return False
     return True
 
@@ -290,9 +274,7 @@ def constraint_filters(
     return filters, unresolved
 
 
-def package_filter(
-    facets: list[dict[str, Any]], footprint: str
-) -> list[tuple[str, str]]:
+def package_filter(facets: list[dict[str, Any]], footprint: str) -> list[tuple[str, str]]:
     expected, names = (
         norm(footprint),
         ("case", "package", "footprint", "housing", "mounting"),
@@ -314,11 +296,7 @@ def common_exact_constraints(
 ) -> list[tuple[str, str]]:
     """Return exact constraints shared by every allowed footprint option."""
     exact_sets = [
-        {
-            (parameter, value)
-            for match_type, parameter, value in option
-            if match_type == "exact"
-        }
+        {(parameter, value) for match_type, parameter, value in option if match_type == "exact"}
         for option in options.values()
     ]
     if not exact_sets:
@@ -377,9 +355,7 @@ def append_footprint_mapping(
 ) -> None:
     """Append verified, non-duplicate KiCad-to-TME constraints."""
     existing = load_footprint_options(translation_file, kicad_footprint).get(option, [])
-    new_constraints = [
-        constraint for constraint in constraints if constraint not in existing
-    ]
+    new_constraints = [constraint for constraint in constraints if constraint not in existing]
     if not new_constraints:
         return
     translation_file.parent.mkdir(parents=True, exist_ok=True)
@@ -482,9 +458,7 @@ def select_preferred_candidate(candidates: list[dict[str, Any]]) -> dict[str, An
     for candidate in candidates:
         line_total = candidate["order_quantity"] * candidate["unit_price_pln"]
         candidate["line_total_pln"] = round(line_total, 6)
-        requested = int(
-            candidate.get("requested_quantity", candidate["order_quantity"])
-        )
+        requested = int(candidate.get("requested_quantity", candidate["order_quantity"]))
         candidate["excess_quantity"] = candidate["order_quantity"] - requested
         candidate["needs_attention"] = candidate["order_quantity"] >= 1000
         candidate["attention_note"] = (
@@ -512,18 +486,14 @@ def select_preferred_candidate(candidates: list[dict[str, Any]]) -> dict[str, An
 def rank_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Place the preferred exact-footprint candidate first in the result list."""
     matching = [candidate for candidate in candidates if candidate["footprint_match"]]
-    nonmatching = [
-        candidate for candidate in candidates if not candidate["footprint_match"]
-    ]
+    nonmatching = [candidate for candidate in candidates if not candidate["footprint_match"]]
     ranked: list[dict[str, Any]] = []
     for group in (matching, nonmatching):
         if not group:
             continue
         preferred = select_preferred_candidate(group)
         others = [candidate for candidate in group if candidate is not preferred]
-        others.sort(
-            key=lambda candidate: (candidate["line_total_pln"], candidate["symbol"])
-        )
+        others.sort(key=lambda candidate: (candidate["line_total_pln"], candidate["symbol"]))
         ranked.extend([preferred, *others])
     return ranked
 
@@ -558,9 +528,7 @@ def search(
                 {
                     "symbol": symbol,
                     "manufacturer": (product.get("manufacturer") or {}).get("name"),
-                    "manufacturer_part_numbers": product.get(
-                        "manufacturer_symbols", []
-                    ),
+                    "manufacturer_part_numbers": product.get("manufacturer_symbols", []),
                     "description": product.get("description", ""),
                     "product_url": f"https://www.tme.eu/pl/details/{quote(symbol.lower(), safe='')}/",
                     "requested_quantity": quantity,
@@ -585,13 +553,15 @@ def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
     try:
         with path.open(encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
-            headers = reader.fieldnames or []
+            headers: list[str] = [str(header) for header in reader.fieldnames or []]
             missing = [column for column in REQUIRED if column not in headers]
             if missing:
-                raise TmeError(
-                    f"CSV is missing required column(s): {', '.join(missing)}."
-                )
-            rows = list(reader)
+                raise TmeError(f"CSV is missing required column(s): {', '.join(missing)}.")
+            rows: list[dict[str, str]] = []
+            for raw_row in reader:
+                if None in raw_row:
+                    raise TmeError(f"CSV {path} has more values than its header.")
+                rows.append({str(key): str(value or "") for key, value in raw_row.items()})
     except OSError as error:
         raise TmeError(f"Could not read {path}: {error}") from error
     if not rows:
@@ -606,9 +576,7 @@ def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
     return rows, headers
 
 
-def enrich(
-    input_path: Path, output_path: Path, token: str, translation_file: Path
-) -> None:
+def enrich(input_path: Path, output_path: Path, token: str, translation_file: Path) -> None:
     rows, headers = bom(input_path)
     fieldnames = [*headers, *[name for name in ADDED if name not in headers]]
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -616,9 +584,7 @@ def enrich(
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get(
-                "TME Symbol", ""
-            ).strip()
+            manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
             if manual_symbol:
                 writer.writerow(
                     {
@@ -684,9 +650,7 @@ def enrich(
                 {
                     **row,
                     "TME Symbol": best["symbol"],
-                    "Manufacturer Part Number": "; ".join(
-                        best["manufacturer_part_numbers"]
-                    ),
+                    "Manufacturer Part Number": "; ".join(best["manufacturer_part_numbers"]),
                     "TME URL": best["product_url"],
                     "Unit Price PLN": f"{best['unit_price_pln']:.6f}",
                     "Line Total PLN": f"{best['line_total_pln']:.6f}",
@@ -733,9 +697,7 @@ def main() -> int:
             relevant = [
                 facet
                 for facet in facets
-                if any(
-                    word in str(facet.get("name", "")).lower() for word in package_names
-                )
+                if any(word in str(facet.get("name", "")).lower() for word in package_names)
             ]
             discovered = products(args.phrase, "", access, 20)
             symbols = [str(product["symbol"]) for product in discovered]
@@ -745,10 +707,7 @@ def main() -> int:
                 parameters = [
                     parameter
                     for parameter in params(item)
-                    if any(
-                        word in str(parameter.get("name", "")).lower()
-                        for word in package_names
-                    )
+                    if any(word in str(parameter.get("name", "")).lower() for word in package_names)
                 ]
                 samples.append({"symbol": symbol, "parameters": parameters})
             print(
@@ -764,12 +723,8 @@ def main() -> int:
                 search_facets(args.phrase, access), exact_constraints
             )
             if unresolved:
-                formatted = ", ".join(
-                    f"{parameter}={value}" for parameter, value in unresolved
-                )
-                raise TmeError(
-                    f"TME did not expose these exact constraints: {formatted}."
-                )
+                formatted = ", ".join(f"{parameter}={value}" for parameter, value in unresolved)
+                raise TmeError(f"TME did not expose these exact constraints: {formatted}.")
             numeric_constraints = [
                 parse_constraint(value) for value in args.numeric_constraint or []
             ]
@@ -779,26 +734,16 @@ def main() -> int:
                 parameters = details(symbols, access, "/products/parameters", [])
                 for parameter, expected in numeric_constraints:
                     if not any(
-                        has_footprint_option(
-                            params(item), [("numeric_mm", parameter, expected)]
-                        )
+                        has_footprint_option(params(item), [("numeric_mm", parameter, expected)])
                         for item in parameters.values()
                     ):
-                        raise TmeError(
-                            f"TME did not expose numeric {parameter}={expected}mm."
-                        )
+                        raise TmeError(f"TME did not expose numeric {parameter}={expected}mm.")
             append_footprint_mapping(
                 args.translation_file,
                 args.kicad_footprint,
                 [
-                    *[
-                        ("exact", parameter, value)
-                        for parameter, value in exact_constraints
-                    ],
-                    *[
-                        ("numeric_mm", parameter, value)
-                        for parameter, value in numeric_constraints
-                    ],
+                    *[("exact", parameter, value) for parameter, value in exact_constraints],
+                    *[("numeric_mm", parameter, value) for parameter, value in numeric_constraints],
                 ],
                 args.option,
                 args.notes,

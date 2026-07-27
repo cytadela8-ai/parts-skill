@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TME BOM review</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='review.css') }}">
+    <script defer src="{{ url_for('static', filename='review.js') }}"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <p class="eyebrow">TME parts review</p>
+      <h1>Choose the final BOM</h1>
+      <p>Review each selected part, set the final count, or substitute a TME product.</p>
+    </header>
+    <main class="review-layout">
+      <section class="bom-panel" aria-labelledby="bom-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Final CSV</p>
+            <h2 id="bom-heading">Parts</h2>
+          </div>
+          <output id="row-count" aria-live="polite"></output>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Value</th>
+                <th>Selected TME part</th>
+                <th>Final Item Count</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="parts-table"></tbody>
+          </table>
+        </div>
+      </section>
+      <aside class="detail-panel" aria-labelledby="detail-heading">
+        <p class="eyebrow">Selected row</p>
+        <h2 id="detail-heading">Part details</h2>
+        <p id="detail-empty">Choose a part from the table to see its current TME data.</p>
+        <div id="detail-content" hidden>
+          <div class="summary-card">
+            <h3 id="part-title"></h3>
+            <p id="part-description"></p>
+            <div id="part-links" class="links"></div>
+          </div>
+          <form id="count-form" class="editor">
+            <label for="final-count">Final Item Count</label>
+            <div class="field-row">
+              <input id="final-count" name="count" inputmode="numeric" min="1" required type="number">
+              <button type="submit">Save</button>
+            </div>
+          </form>
+          <form id="substitution-form" class="editor">
+            <label for="replacement-symbol">Replace with TME code</label>
+            <div class="field-row">
+              <input id="replacement-symbol" name="symbol" placeholder="Paste TME symbol" required>
+              <button type="submit">Replace</button>
+            </div>
+          </form>
+          <p id="form-message" class="message" aria-live="polite"></p>
+          <details open>
+            <summary>Full TME properties</summary>
+            <dl id="parameters"></dl>
+          </details>
+        </div>
+      </aside>
+    </main>
+  </body>
+</html>

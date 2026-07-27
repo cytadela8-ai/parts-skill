@@ -77,6 +77,27 @@ Create an initial enriched file with the helper:
 python3 <skill-path>/scripts/tme_parts.py csv input.csv --output tme-results.csv
 ```
 
+## Launch the local review app for the user
+
+After producing the AI-processed file, launch the review app for the user:
+
+```bash
+uv run --project <skill-path> <skill-path>/find-tme-parts/scripts/review_parts.py \
+  tme-results.csv
+```
+
+Tell the user the browser address shown by the command. The first launch creates
+`tme-results-final.csv` in the same directory. This is the final state file; reuse it on later
+launches, and never regenerate it from the processed CSV after the user has edited it. The app
+initializes `Final Item Count` to the larger of one extra unit or 15% extra, rounded up, and
+preserves later user edits.
+
+The user selects each row to inspect the current TME description and all returned properties, uses
+the visible TME and datasheet links when present, and may paste a replacement TME symbol. The app
+fetches it through the authenticated API and persists the replacement fields with status
+`manually_substituted`. Remind the user that accepting a symbol does not establish footprint safety;
+they should compare the displayed properties against the BOM footprint and stated requirements.
+
 Use this full loop:
 
 1. Run the helper over the complete original CSV. It validates headers and quantities, preserves row order and all original columns, and adds TME result columns. Manual-symbol rows are marked `manually_provided` without lookup. For every other row, a missing footprint mapping becomes `needs_review`; it never falls back to matching the raw KiCad footprint string.
