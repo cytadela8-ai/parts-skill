@@ -318,8 +318,8 @@ class ReviewAppTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             final_path = Path(directory) / "bom-final.csv"
             final_path.write_text(
-                "Reference,Value,Footprint,Qty,Final Item Count\n"
-                "R1,10k,Resistor_SMD:R_0402_1005Metric,10,12\n",
+                "Reference,Value,Footprint,Qty,Final Item Count,Unit Price PLN,Line Total PLN\n"
+                "R1,10k,Resistor_SMD:R_0402_1005Metric,10,12,1.500000,18.000000\n",
                 encoding="utf-8",
             )
             app = review_parts.create_app(final_path, lambda: "token")
@@ -329,6 +329,7 @@ class ReviewAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(row["Final Item Count"], "31")
+        self.assertEqual(row["Line Total PLN"], "46.500000")
 
     def test_approval_sets_the_final_match_status(self) -> None:
         """Record a user's completed cross-check in the persistent final CSV."""

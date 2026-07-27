@@ -54,13 +54,6 @@ summary { cursor: pointer; font-weight: 750; }
 dl { display: grid; grid-template-columns: minmax(9rem, .7fr) 1.5fr; gap: .5rem .8rem; }
 dt { color: #536079; font-weight: 700; }
 dd { margin: 0; }
-.kicad-fields { display: grid; gap: .75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.kicad-field { background: #fff; border: 1px solid #dce2ef; border-radius: 8px; }
-.kicad-field { display: grid; gap: .3rem; }
-.kicad-field { min-width: 0; padding: .65rem .75rem; }
-.kicad-field strong { color: #536079; font-size: .72rem; letter-spacing: .06em; }
-.kicad-field strong { text-transform: uppercase; }
-.kicad-field span { overflow-wrap: anywhere; }
 .message { color: #8a2c34; margin: 0; }
 .status { border-radius: 999px; display: inline-block; font-size: .73rem; font-weight: 700; }
 .status { max-width: 12rem; overflow: hidden; padding: .28rem .55rem; }
@@ -74,5 +67,4 @@ dd { margin: 0; }
   .site-header, .review-layout { padding-inline: 1rem; }
   .inline-details { grid-template-columns: 1fr; }
   .review-controls { grid-template-columns: 1fr; }
-  .kicad-fields { grid-template-columns: 1fr; }
 }

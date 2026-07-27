@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,12 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
             return payload
         try:
             value = str(positive(str(payload.get("count", ""))))
-            row = update_row(final_csv, index, {FINAL_COUNT: value})
+            existing = get_row(final_csv, index)
+            updates = {FINAL_COUNT: value}
+            total = final_line_total(existing.get("Unit Price PLN", ""), value)
+            if total is not None:
+                updates["Line Total PLN"] = total
+            row = update_row(final_csv, index, updates)
         except TmeError as exception:
             return error(str(exception), 422)
         except argparse.ArgumentTypeError as exception:
@@ -68,7 +74,7 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
         try:
             row = get_row(final_csv, index)
             product = fetch_product(symbol, final_count(row), token_supplier())
-            updated = update_row(final_csv, index, replacement_fields(product))
+            updated = update_row(final_csv, index, replacement_fields(product, final_count(row)))
         except TmeError as exception:
             return error(str(exception), 422)
         return jsonify({"row": {"index": index, **updated}, "product": product})
@@ -108,14 +114,25 @@ def final_count(row: dict[str, str]) -> int:
         raise TmeError("Final Item Count must be a positive integer.") from exception
 
 
-def replacement_fields(product: dict[str, object]) -> dict[str, str]:
+def final_line_total(unit_price: str, quantity: str | int) -> str | None:
+    """Calculate a review total from the user-approved item count."""
+    if not unit_price.strip():
+        return None
+    try:
+        total = Decimal(unit_price) * Decimal(str(quantity))
+    except InvalidOperation as error:
+        raise TmeError(f"Unit Price PLN '{unit_price}' is not a valid decimal.") from error
+    return f"{total:.6f}"
+
+
+def replacement_fields(product: dict[str, object], quantity: int) -> dict[str, str]:
     """Map normalized TME data to the persistent final CSV columns."""
     return {
         "TME Symbol": str(product["symbol"]),
         "Manufacturer Part Number": str(product["manufacturer_part_number"]),
         "TME URL": str(product["product_url"]),
         "Unit Price PLN": str(product["unit_price_pln"]),
-        "Line Total PLN": str(product["line_total_pln"]),
+        "Line Total PLN": final_line_total(str(product["unit_price_pln"]), quantity) or "",
         "Order Qty": str(product["order_qty"]),
         "Excess Qty": str(product["excess_qty"]),
         "Stock Qty": str(product["stock_qty"]),

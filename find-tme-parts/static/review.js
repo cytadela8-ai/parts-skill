@@ -56,6 +56,12 @@ function priceCell(value) {
   return cell;
 }
 
+function finalLineTotal(row) {
+  const price = Number(row["Unit Price PLN"]);
+  const count = Number(row["Final Item Count"]);
+  return Number.isFinite(price) && Number.isFinite(count) ? String(price * count) : "";
+}
+
 function renderRows() {
   table.replaceChildren();
   document.querySelector("#row-count").textContent = `${state.rows.length} parts`;
@@ -77,7 +83,7 @@ function dataRow(row) {
     rowCell(row["Final Item Count"]),
     rowCell(row["TME Symbol"]),
     priceCell(row["Unit Price PLN"]),
-    priceCell(row["Line Total PLN"]),
+    priceCell(finalLineTotal(row)),
     statusCell(row),
   );
   element.addEventListener("click", () => selectRow(row.index));
@@ -147,17 +153,13 @@ function kicadPanel(row) {
     ["Value", row.Value],
     ["Footprint", row.Footprint],
   ];
-  const list = document.createElement("div");
-  list.className = "kicad-fields";
+  const list = document.createElement("dl");
   for (const [label, value] of values) {
-    const field = document.createElement("div");
-    field.className = "kicad-field";
-    const name = document.createElement("strong");
+    const name = document.createElement("dt");
     name.textContent = label;
-    const detail = document.createElement("span");
+    const detail = document.createElement("dd");
     detail.textContent = value || "—";
-    field.append(name, detail);
-    list.append(field);
+    list.append(name, detail);
   }
   panel.append(heading, list);
   return panel;
