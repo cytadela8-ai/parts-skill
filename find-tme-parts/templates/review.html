@@ -8,17 +8,12 @@
     <script defer src="{{ url_for('static', filename='review.js') }}"></script>
   </head>
   <body>
-    <header class="site-header">
-      <p class="eyebrow">TME parts review</p>
-      <h1>Choose the final BOM</h1>
-      <p>Review each selected part, set the final count, or substitute a TME product.</p>
-    </header>
     <main class="review-layout">
       <section class="bom-panel" aria-labelledby="bom-heading">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Final CSV</p>
-            <h2 id="bom-heading">Parts</h2>
+            <h2 id="bom-heading">{{ final_csv_name }}</h2>
           </div>
           <output id="row-count" aria-live="polite"></output>
         </div>

@@ -368,6 +368,8 @@ class ReviewAppTests(unittest.TestCase):
         self.assertIn(b"Original Qty", response.data)
         self.assertIn(b"Unit Price PLN", response.data)
         self.assertIn(b"sort-button", response.data)
+        self.assertIn(b"bom-final.csv", response.data)
+        self.assertNotIn(b"Choose the final BOM", response.data)
 
 
 def load_script_module(name: str) -> ModuleType:

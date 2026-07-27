@@ -6,11 +6,10 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; }
-h1, h2, p { margin-top: 0; }
-h1 { font-size: clamp(2rem, 4vw, 3.25rem); letter-spacing: -.045em; }
+h2, p { margin-top: 0; }
 
 .site-header, .review-layout { max-width: 1800px; margin: auto; padding-inline: 2rem; }
-.site-header { padding-block: 3rem 1.5rem; }
+.review-layout { padding-top: 1rem; }
 .eyebrow { color: #4660a8; font-size: .75rem; font-weight: 750; letter-spacing: .1em; }
 .eyebrow { text-transform: uppercase; }
 .bom-panel { background: #fff; border: 1px solid #dce2ef; border-radius: 18px; }

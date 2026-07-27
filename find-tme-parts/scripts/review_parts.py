@@ -28,7 +28,7 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
 
     @app.get("/")
     def index() -> str:
-        return render_template("review.html")
+        return render_template("review.html", final_csv_name=final_csv.name)
 
     @app.get("/api/rows")
     def rows() -> Any:
