@@ -77,28 +77,14 @@ Create an initial enriched file with the helper:
 python3 <skill-path>/scripts/tme_parts.py csv input.csv --output tme-results.csv
 ```
 
-## Launch the local review app for the user
+## Launch the local review app
 
-After producing the AI-processed file, launch the review app for the user:
+When the user wants to review an AI-processed CSV, start the app:
 
 ```bash
 uv run --project <skill-path> <skill-path>/find-tme-parts/scripts/review_parts.py \
   tme-results.csv
 ```
-
-Tell the user the browser address shown by the command. The first launch creates
-`tme-results-final.csv` in the same directory. This is the final state file; reuse it on later
-launches, and never regenerate it from the processed CSV after the user has edited it. The app
-initializes `Final Item Count` to the larger of one extra unit or 15% extra, rounded up, and
-preserves later user edits.
-
-The user can sort the table by any column, then select each row to inspect the current TME
-description, API-provided photo, and all returned properties on the left, against the original KiCad
-reference, description, value, and footprint on the right. The visible TME product link opens the
-selected product page. The user may paste a replacement TME symbol; the app fetches it through the
-authenticated API and persists the replacement fields with status `manually_substituted`. The user
-can approve a reviewed row, which writes status `approved`. Remind the user that approving a row
-requires comparing the displayed properties against the BOM footprint and stated requirements.
 
 Use this full loop:
 

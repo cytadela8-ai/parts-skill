@@ -17,7 +17,7 @@ h1 { font-size: clamp(2rem, 4vw, 3.25rem); letter-spacing: -.045em; }
 .bom-panel { box-shadow: 0 10px 30px #26375a0c; overflow: hidden; }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; }
 .panel-heading { padding: 1.25rem 1.5rem; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { max-height: calc(100vh - 12rem); overflow: auto; }
 table { border-collapse: collapse; min-width: 1100px; width: 100%; }
 th { background: #f0f3fa; text-align: left; }
 thead th { position: sticky; top: 0; z-index: 2; }
