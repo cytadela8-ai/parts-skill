@@ -73,6 +73,22 @@ def create_app(final_csv: Path, token_supplier: Callable[[], str]) -> Flask:
             return error(str(exception), 422)
         return jsonify({"row": {"index": index, **updated}, "product": product})
 
+    @app.post("/api/rows/<int:index>/approve")
+    def approve(index: int) -> Any:
+        """Persist a user's approval after their cross-check."""
+        try:
+            row = update_row(
+                final_csv,
+                index,
+                {
+                    "TME Match Status": "approved",
+                    "TME Match Notes": "Approved in the review app after manual cross-check.",
+                },
+            )
+        except TmeError as exception:
+            return error(str(exception), 422)
+        return jsonify({"row": {"index": index, **row}})
+
     return app
 
 

@@ -330,6 +330,25 @@ class ReviewAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(row["Final Item Count"], "31")
 
+    def test_approval_sets_the_final_match_status(self) -> None:
+        """Record a user's completed cross-check in the persistent final CSV."""
+        review_parts = load_script_module("review_parts")
+        with tempfile.TemporaryDirectory() as directory:
+            final_path = Path(directory) / "bom-final.csv"
+            final_path.write_text(
+                "Reference,Value,Footprint,Qty,TME Match Status,TME Match Notes\n"
+                "R1,10k,Resistor_SMD:R_0402_1005Metric,10,needs_review,Check package\n",
+                encoding="utf-8",
+            )
+            app = review_parts.create_app(final_path, lambda: "token")
+            response = app.test_client().post("/api/rows/0/approve")
+            with final_path.open(encoding="utf-8", newline="") as file:
+                row = next(csv.DictReader(file))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(row["TME Match Status"], "approved")
+        self.assertIn("approved", row["TME Match Notes"].lower())
+
     def test_review_page_serves_the_application_shell(self) -> None:
         """Render an accessible review screen with the essential controls."""
         review_parts = load_script_module("review_parts")

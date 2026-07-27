@@ -61,10 +61,12 @@ state: it preserves the original data, selected substitutes, and manual edits ac
 app adds `Final Item Count`, initialized to the larger of one extra unit or 15% extra, rounded up.
 It never recalculates a non-empty value, so manual count edits persist.
 
-Sort the wide table by any column to compare original and final counts, unit prices, and line totals.
-Select a row to expand its current TME description, API-provided product photo, properties, and
-product link inline. Paste a replacement TME symbol to fetch and save its current product, price,
-and stock fields. The app marks this selection `manually_substituted`.
+Sort the wide, sticky-header table by any column to compare original and final counts, unit prices,
+and line totals. PLN prices are displayed to two decimal places with `zł`, while the CSV preserves
+their full source precision. Select a row to expand an inline TME/KiCad cross-check: TME data and
+photo are on the left; the BOM reference, description, value, and footprint are on the right.
+Paste a replacement TME symbol to fetch and save its current product, price, and stock fields. Use
+**Approve row** after the cross-check to persist status `approved`.
 
 For numeric dimensions, use `--numeric-constraint`, for example
 `--numeric-constraint 'Diameter=5'`.

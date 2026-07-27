@@ -93,11 +93,12 @@ initializes `Final Item Count` to the larger of one extra unit or 15% extra, rou
 preserves later user edits.
 
 The user can sort the table by any column, then select each row to inspect the current TME
-description, API-provided photo, and all returned properties inline. The visible TME product link
-opens the selected product page. The user may paste a replacement TME symbol; the app fetches it
-through the authenticated API and persists the replacement fields with status
-`manually_substituted`. Remind the user that accepting a symbol does not establish footprint safety;
-they should compare the displayed properties against the BOM footprint and stated requirements.
+description, API-provided photo, and all returned properties on the left, against the original KiCad
+reference, description, value, and footprint on the right. The visible TME product link opens the
+selected product page. The user may paste a replacement TME symbol; the app fetches it through the
+authenticated API and persists the replacement fields with status `manually_substituted`. The user
+can approve a reviewed row, which writes status `approved`. Remind the user that approving a row
+requires comparing the displayed properties against the BOM footprint and stated requirements.
 
 Use this full loop:
 

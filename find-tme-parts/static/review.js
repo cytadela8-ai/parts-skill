@@ -42,6 +42,20 @@ function rowCell(value) {
   return cell;
 }
 
+function priceCell(value) {
+  const cell = document.createElement("td");
+  if (!value) {
+    cell.textContent = "—";
+    return cell;
+  }
+  const amount = Number(value);
+  cell.textContent = `${amount.toLocaleString("pl-PL", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })} zł`;
+  return cell;
+}
+
 function renderRows() {
   table.replaceChildren();
   document.querySelector("#row-count").textContent = `${state.rows.length} parts`;
@@ -62,8 +76,8 @@ function dataRow(row) {
     rowCell(row.Qty),
     rowCell(row["Final Item Count"]),
     rowCell(row["TME Symbol"]),
-    rowCell(row["Unit Price PLN"]),
-    rowCell(row["Line Total PLN"]),
+    priceCell(row["Unit Price PLN"]),
+    priceCell(row["Line Total PLN"]),
     statusCell(row),
   );
   element.addEventListener("click", () => selectRow(row.index));
@@ -96,15 +110,41 @@ function detailRow(row) {
 function detailPanel(row) {
   const panel = document.createElement("section");
   panel.className = "inline-details";
+  const tmeDetails = document.createElement("section");
+  tmeDetails.className = "tme-details";
   if (state.detailError) {
-    panel.append(detailMessage(state.detailError));
+    tmeDetails.append(detailMessage(state.detailError));
   } else if (state.details) {
-    panel.append(productSummary(state.details));
-    panel.append(parameterList(state.details.parameters || []));
+    tmeDetails.append(productSummary(state.details));
+    tmeDetails.append(parameterList(state.details.parameters || []));
   } else {
-    panel.append(detailMessage("Loading current TME details…"));
+    tmeDetails.append(detailMessage("Loading current TME details…"));
   }
-  panel.append(countEditor(row), substitutionEditor(row), detailMessage(""));
+  tmeDetails.append(countEditor(row), substitutionEditor(row), approveButton(row));
+  panel.append(tmeDetails, kicadPanel(row));
+  return panel;
+}
+
+function kicadPanel(row) {
+  const panel = document.createElement("section");
+  panel.className = "kicad-details";
+  const heading = document.createElement("h2");
+  heading.textContent = "KiCad cross-check";
+  const values = [
+    ["References", row.Reference],
+    ["Description", row.Opis],
+    ["Value", row.Value],
+    ["Footprint", row.Footprint],
+  ];
+  const list = document.createElement("dl");
+  for (const [label, value] of values) {
+    const name = document.createElement("dt");
+    name.textContent = label;
+    const detail = document.createElement("dd");
+    detail.textContent = value || "—";
+    list.append(name, detail);
+  }
+  panel.append(heading, list);
   return panel;
 }
 
@@ -173,6 +213,14 @@ function substitutionEditor(row) {
   return form;
 }
 
+function approveButton(row) {
+  const button = document.createElement("button");
+  button.className = "approve-button";
+  button.textContent = "Approve row";
+  button.addEventListener("click", () => approveRow(row.index));
+  return button;
+}
+
 function detailMessage(text) {
   const message = document.createElement("p");
   message.className = "message";
@@ -221,6 +269,16 @@ async function substitute(event, index) {
     });
     state.details = result.product;
     state.detailError = "";
+    await reloadRows();
+  } catch (error) {
+    state.detailError = error.message;
+    renderRows();
+  }
+}
+
+async function approveRow(index) {
+  try {
+    await requestJson(`/api/rows/${index}/approve`, { method: "POST" });
     await reloadRows();
   } catch (error) {
     state.detailError = error.message;

@@ -33,7 +33,9 @@ That final CSV is the only writable state. It adds `Final Item Count`, using
 `max(Qty + 1, ceil(Qty * 1.15))` on creation and preserving every non-empty later value.
 
 The app fetches part description, parameters, and the API-provided primary product photo from TME
-when a row is selected. It displays the detail inline below the selected row; sorting does not change
-the CSV order. Substitution fetches a pasted TME symbol before atomically writing its product,
-pricing, stock, and status fields. The server listens only on `127.0.0.1`. Use `uv run --project <repo-root>
+when a row is selected. It displays the detail inline below the selected row, with TME data on the
+left and the original KiCad/BOM reference, description, value, and footprint on the right. Sorting
+does not change CSV order. Approval writes `approved` to `TME Match Status`. Substitution fetches a
+pasted TME symbol before atomically writing its product, pricing, stock, and status fields. The
+server listens only on `127.0.0.1`. Use `uv run --project <repo-root>
 find-tme-parts/scripts/review_parts.py AI_RESULTS.csv` to launch it.
