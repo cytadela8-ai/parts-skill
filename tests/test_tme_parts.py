@@ -121,6 +121,116 @@ class CsvEnrichmentTests(unittest.TestCase):
         self.assertIn("R1,unmapped,Missing:Footprint,1", partial_output)
 
 
+class AiSelectionTests(unittest.TestCase):
+    """Verify AI-selected TME symbols persist across BOM regeneration."""
+
+    def test_records_and_replaces_a_selection_by_reference(self) -> None:
+        """Keep one current TME symbol for each KiCad reference."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ai-selected-parts.csv"
+
+            tme_parts.record_ai_selection(path, "R1", "OLD-SYMBOL")
+            tme_parts.record_ai_selection(path, "C2", "CAP-SYMBOL")
+            tme_parts.record_ai_selection(path, "R1", "NEW-SYMBOL")
+
+            with path.open(encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(
+            rows,
+            [
+                {"Reference": "R1", "TME Symbol": "NEW-SYMBOL"},
+                {"Reference": "C2", "TME Symbol": "CAP-SYMBOL"},
+            ],
+        )
+
+    def test_applies_ai_selection_and_loads_only_that_part(self) -> None:
+        """Resolve an AI symbol instead of repeating automatic search for its row."""
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            input_path = directory_path / "input.csv"
+            output_path = directory_path / "output.csv"
+            selection_path = directory_path / "ai-selected-parts.csv"
+            mapping_path = directory_path / "footprint-translations.csv"
+            input_path.write_text(
+                "Reference,Value,Footprint,Qty\nR1,10k,Resistor_SMD:R_0402_1005Metric,10\n",
+                encoding="utf-8",
+            )
+            selection_path.write_text(
+                "Reference,TME Symbol\nR1,AI-SELECTED\n",
+                encoding="utf-8",
+            )
+            mapping_path.write_text(
+                "kicad_footprint,option,match_type,tme_parameter,tme_value,notes\n"
+                "Resistor_SMD:R_0402_1005Metric,default,exact,Mounting,SMD,test\n",
+                encoding="utf-8",
+            )
+            selected = {
+                "symbol": "AI-SELECTED",
+                "manufacturer_part_numbers": ["MFG-1"],
+                "product_url": "https://www.tme.eu/pl/details/ai-selected/",
+                "unit_price_pln": 0.5,
+                "line_total_pln": 5.0,
+                "order_quantity": 10,
+                "excess_quantity": 0,
+                "stock_quantity": 50,
+                "footprint_match": True,
+                "needs_attention": False,
+                "attention_note": "",
+            }
+
+            with (
+                mock.patch.object(tme_parts, "search") as search,
+                mock.patch.object(
+                    tme_parts,
+                    "load_selected_candidate",
+                    return_value=selected,
+                ) as load_selected,
+            ):
+                tme_parts.enrich(
+                    input_path,
+                    output_path,
+                    "token",
+                    mapping_path,
+                    selection_path,
+                )
+
+            with output_path.open(encoding="utf-8", newline="") as file:
+                result = next(csv.DictReader(file))
+
+        self.assertEqual(result["TME Symbol"], "AI-SELECTED")
+        self.assertEqual(result["TME Match Status"], "candidate_unreviewed")
+        self.assertIn("selected by the AI", result["TME Match Notes"])
+        search.assert_not_called()
+        load_selected.assert_called_once()
+
+    def test_rejects_selection_references_missing_from_the_bom(self) -> None:
+        """Fail fast when a selection key cannot identify an input row."""
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            input_path = directory_path / "input.csv"
+            output_path = directory_path / "output.csv"
+            selection_path = directory_path / "ai-selected-parts.csv"
+            mapping_path = directory_path / "footprint-translations.csv"
+            input_path.write_text(
+                "Reference,Value,Footprint,Qty\nR1,10k,Resistor_SMD:R_0402_1005Metric,10\n",
+                encoding="utf-8",
+            )
+            selection_path.write_text(
+                "Reference,TME Symbol\nR9,UNKNOWN\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(tme_parts.TmeError, "R9"):
+                tme_parts.enrich(
+                    input_path,
+                    output_path,
+                    "token",
+                    mapping_path,
+                    selection_path,
+                )
+
+
 class ManualTmeSymbolTests(unittest.TestCase):
     """Verify manually supplied TME symbols bypass enrichment."""
 

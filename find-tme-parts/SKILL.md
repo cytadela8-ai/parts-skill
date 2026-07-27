@@ -146,20 +146,53 @@ Use this AI processing loop. **Do not launch or use the review app during this l
      --phrase '<corrected component phrase>' --footprint '<mapped package>' --qty <Qty>
    ```
 
-   Inspect the returned description and parameters. Set `no_in_stock_match` only when this recovery
-   search returns no priced in-stock candidate. If it returns candidates but none is safe, use
-   `no_safe_match` and explain why. Never convert a wrong automatic candidate directly to
+   Inspect the returned description and parameters. When a candidate is safe, persist its TME
+   symbol immediately in `tme-ai-selections.csv`:
+
+   ```bash
+   python3 <skill-dir>/scripts/tme_parts.py record-selection \
+     --file tme-ai-selections.csv --reference '<Reference>' --symbol '<TME symbol>'
+   ```
+
+   The selection file contains only `Reference,TME Symbol`. `record-selection` creates it and
+   replaces an earlier selection for the same exact, trimmed KiCad `Reference`. Never record a
+   selection for a row with a manual symbol in the original BOM.
+
+   Record the diagnosis in working notes; final statuses are applied only after the last helper
+   call. The final result is `no_in_stock_match` only when the recovery search returns no priced
+   in-stock candidate. If it returns candidates but none is safe, the final result is
+   `no_safe_match`; record the specific reason. Never classify a wrong automatic candidate as
    `no_in_stock_match` without this recovery search.
-4. When a safe reusable improvement exists, add verified translation constraints or update the
-   helper. Do not change a mapping merely to make a candidate appear valid.
-5. Rerun the helper over the complete original CSV, not an earlier result CSV, then review every row
-   again.
-6. Review every `candidate_unreviewed` and `needs_attention` row against the returned description
-   and parameters. Use `validated_match` only after checking component type, value, ratings,
+4. During the same diagnosis pass, add verified footprint constraints when a mapping is missing or
+   incorrect. Do not change a mapping merely to make a candidate appear valid.
+5. If a footprint mapping change is likely to improve more automatic matches, rerun generation from
+   the complete original CSV and return to step 2. Always supply the accumulated selection file so
+   previous AI choices survive:
+
+   ```bash
+   python3 <skill-dir>/scripts/tme_parts.py csv input.csv \
+     --output tme-results.csv --ai-selections tme-ai-selections.csv
+   ```
+
+   For a matching reference, the helper loads current data for exactly the selected TME symbol; it
+   does not repeat the broad automatic search. It fails on unknown or duplicate references instead
+   of guessing which row was intended.
+6. When no concrete mapping improvement remains, make one final helper call over the complete
+   original CSV with `--ai-selections`. This is the final generated base for AI validation; do not
+   rerun the helper after editing its statuses or notes.
+
+   ```bash
+   python3 <skill-dir>/scripts/tme_parts.py csv input.csv \
+     --output tme-results.csv --ai-selections tme-ai-selections.csv
+   ```
+
+7. Review every row in the final generated CSV except `manually_provided`, including regenerated
+   `needs_review` and `no_in_stock_match` rows. Reapply every recovery-search outcome from the
+   diagnosis pass. Use `validated_match` only after checking component type, value, ratings,
    footprint, and MPN/family interpretation. Keep `needs_attention` only for a technically validated
    but commercially suspicious choice. Otherwise use `needs_review`, `no_safe_match`, or
-   `no_in_stock_match` according to the definitions below.
-7. Repeat while a concrete safe improvement remains. Do not return a CSV containing
+   `no_in_stock_match` according to the definitions below. Add a specific `TME Match Notes`
+   explanation for each non-validated result. Do not return a CSV containing
    `candidate_unreviewed`.
 
 Final AI status meanings:
@@ -195,8 +228,8 @@ any unreviewed candidate explicitly; it is not approved for ordering.
 ## Launch the human review app at the end
 
 The review app is for the human, after the AI processing loop and chat summary are complete. Do not
-use it to search, validate, or change statuses during the AI loop. Start it only when the user asks
-to review the completed AI-processed CSV:
+use it to search, validate, or change statuses during the AI loop. After informing the user of the
+overall result, start it with the completed AI-processed CSV:
 
 ```bash
 uv run --project <repo-root> <skill-dir>/scripts/review_parts.py tme-results.csv

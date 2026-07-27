@@ -20,6 +20,13 @@ The required BOM columns are `Reference`, `Value`, `Footprint`, and `Qty`. A non
 `TME Symbol` output column with status `manually_provided`, and bypasses TME search and footprint
 review. `TME_SYMBOL` wins if both columns are present.
 
+AI-selected parts are stored separately as `Reference,TME Symbol`. `record-selection` owns this
+small overlay file and replaces an existing symbol without changing its reference order. The
+`csv --ai-selections` option validates that every key identifies exactly one BOM row and does not
+conflict with a manual symbol. It then fetches the exact selected product and its current price and
+stock data. These rows bypass broad automatic search but still receive footprint and AI-review
+statuses in the generated output.
+
 Run the test suite with:
 
 ```bash

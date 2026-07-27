@@ -28,6 +28,7 @@ TRANSLATION_COLUMNS = (
     "tme_value",
     "notes",
 )
+AI_SELECTION_COLUMNS = ("Reference", "TME Symbol")
 ADDED = (
     "TME Symbol",
     "Manufacturer Part Number",
@@ -84,8 +85,16 @@ def arguments() -> argparse.Namespace:
     batch = commands.add_parser("csv", help="Validate and enrich a BOM CSV.")
     batch.add_argument("input", type=Path)
     batch.add_argument("--output", required=True, type=Path)
+    batch.add_argument("--ai-selections", type=Path)
     batch.add_argument("--translation-file", default=TRANSLATION_FILE, type=Path)
     batch.add_argument("--env-file", default=Path(".env"), type=Path)
+    selection = commands.add_parser(
+        "record-selection",
+        help="Record an AI-selected TME symbol for one BOM reference.",
+    )
+    selection.add_argument("--file", required=True, type=Path)
+    selection.add_argument("--reference", required=True)
+    selection.add_argument("--symbol", required=True)
     return parser.parse_args()
 
 
@@ -377,6 +386,58 @@ def append_footprint_mapping(
             )
 
 
+def load_ai_selections(path: Path | None) -> dict[str, str]:
+    """Load AI-selected TME symbols keyed by exact KiCad reference."""
+    if path is None or not path.exists() or path.stat().st_size == 0:
+        return {}
+    try:
+        with path.open(encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            headers = tuple(str(header) for header in reader.fieldnames or [])
+            if headers != AI_SELECTION_COLUMNS:
+                raise TmeError(
+                    f"AI selection CSV must have columns: {', '.join(AI_SELECTION_COLUMNS)}."
+                )
+            selections: dict[str, str] = {}
+            for row_number, row in enumerate(reader, start=2):
+                reference = str(row["Reference"] or "").strip()
+                symbol = str(row["TME Symbol"] or "").strip()
+                if not reference or not symbol:
+                    raise TmeError(
+                        f"AI selection CSV row {row_number} needs Reference and TME Symbol."
+                    )
+                if reference in selections:
+                    raise TmeError(f"AI selection CSV contains duplicate Reference '{reference}'.")
+                selections[reference] = symbol
+            return selections
+    except OSError as error:
+        raise TmeError(f"Could not read AI selection CSV {path}: {error}") from error
+
+
+def record_ai_selection(path: Path, reference: str, symbol: str) -> None:
+    """Create or replace one AI selection while preserving reference order."""
+    reference = reference.strip()
+    symbol = symbol.strip()
+    if not reference or not symbol:
+        raise TmeError("AI selections require a non-empty reference and TME symbol.")
+    selections = load_ai_selections(path)
+    selections[reference] = symbol
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=AI_SELECTION_COLUMNS)
+            writer.writeheader()
+            for saved_reference, saved_symbol in selections.items():
+                writer.writerow(
+                    {
+                        "Reference": saved_reference,
+                        "TME Symbol": saved_symbol,
+                    }
+                )
+    except OSError as error:
+        raise TmeError(f"Could not write AI selection CSV {path}: {error}") from error
+
+
 def batches(items: list[str]) -> Iterable[list[str]]:
     for start in range(0, len(items), 50):
         yield items[start : start + 50]
@@ -398,6 +459,30 @@ def details(
         ):
             result[str(item.get("symbol", ""))] = item
     return result
+
+
+def product_records(symbol: str, token: str) -> dict[str, Any]:
+    """Load the exact product, parameters, price, and stock for a TME symbol."""
+    matches = products(symbol, "", token, 20)
+    product = next(
+        (item for item in matches if str(item.get("symbol", "")).upper() == symbol.strip().upper()),
+        None,
+    )
+    if product is None:
+        raise TmeError(f"TME product '{symbol}' was not found.")
+    actual_symbol = str(product["symbol"])
+    parameter_data = details([actual_symbol], token, "/products/parameters", [])
+    price_data = details(
+        [actual_symbol],
+        token,
+        "/products/data",
+        [("currency", "PLN"), ("scope[]", "stock"), ("scope[]", "prices")],
+    )
+    return {
+        "product": product,
+        "parameters": params(parameter_data.get(actual_symbol, {})),
+        "data": price_data.get(actual_symbol, {}),
+    }
 
 
 def order_qty(product: Mapping[str, Any], requested: int) -> int:
@@ -498,6 +583,48 @@ def rank_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ranked
 
 
+def load_selected_candidate(
+    symbol: str,
+    quantity: int,
+    token: str,
+    options: dict[str, list[tuple[str, str, str]]] | None,
+) -> dict[str, Any]:
+    """Load current data for exactly one AI-selected TME product."""
+    records = product_records(symbol, token)
+    product = records["product"]
+    data = records["data"]
+    product_parameters = records["parameters"]
+    order = order_qty(product, quantity)
+    price = unit_price(data, order)
+    if price is None:
+        raise TmeError(f"TME returned no PLN price for AI-selected product '{symbol}'.")
+    stock = int(data.get("stock_quantity") or 0)
+    candidate = {
+        "symbol": str(product["symbol"]),
+        "manufacturer_part_numbers": product.get("manufacturer_symbols", []),
+        "description": product.get("description", ""),
+        "product_url": (
+            f"https://www.tme.eu/pl/details/{quote(str(product['symbol']).lower(), safe='')}/"
+        ),
+        "requested_quantity": quantity,
+        "order_quantity": order,
+        "stock_quantity": stock,
+        "unit_price_pln": price,
+        "footprint_match": (
+            has_footprint_options(product_parameters, options) if options else False
+        ),
+        "parameters": product_parameters,
+        "parameter_summary": summary(product_parameters),
+    }
+    select_preferred_candidate([candidate])
+    if stock < order:
+        candidate["needs_attention"] = True
+        candidate["attention_note"] = (
+            f"Current stock {stock} does not cover order quantity {order}."
+        )
+    return candidate
+
+
 def search(
     phrase: str,
     footprint: str,
@@ -549,7 +676,8 @@ def search(
     return rank_candidates(candidates)
 
 
-def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+def read_bom_rows(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+    """Read BOM rows and validate the CSV shape."""
     try:
         with path.open(encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
@@ -564,6 +692,12 @@ def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
                 rows.append({str(key): str(value or "") for key, value in raw_row.items()})
     except OSError as error:
         raise TmeError(f"Could not read {path}: {error}") from error
+
+    return rows, headers
+
+
+def validate_bom_rows(rows: list[dict[str, str]]) -> None:
+    """Validate required values in parsed BOM rows."""
     if not rows:
         raise TmeError("CSV has no data rows.")
     for row_number, row in enumerate(rows, start=2):
@@ -573,185 +707,264 @@ def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
             raise TmeError(f"CSV row {row_number} has invalid Qty: {error}.") from error
         if not row["Value"].strip() or not row["Footprint"].strip():
             raise TmeError(f"CSV row {row_number} needs non-empty Value and Footprint.")
+
+
+def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+    """Load and validate one BOM CSV."""
+    rows, headers = read_bom_rows(path)
+    validate_bom_rows(rows)
     return rows, headers
 
 
-def enrich(input_path: Path, output_path: Path, token: str, translation_file: Path) -> None:
+def candidate_output(
+    row: dict[str, str],
+    candidate: Mapping[str, Any],
+    status: str,
+    note: str,
+) -> dict[str, Any]:
+    """Combine one BOM row with normalized selected-candidate fields."""
+    return {
+        **row,
+        "TME Symbol": candidate["symbol"],
+        "Manufacturer Part Number": "; ".join(candidate["manufacturer_part_numbers"]),
+        "TME URL": candidate["product_url"],
+        "Unit Price PLN": f"{candidate['unit_price_pln']:.6f}",
+        "Line Total PLN": f"{candidate['line_total_pln']:.6f}",
+        "Order Qty": candidate["order_quantity"],
+        "Excess Qty": candidate["excess_quantity"],
+        "Stock Qty": candidate["stock_quantity"],
+        "TME Match Status": status,
+        "TME Match Notes": note,
+    }
+
+
+def validate_ai_selection_references(
+    rows: list[dict[str, str]], selections: Mapping[str, str]
+) -> None:
+    """Require every selection key to identify one non-manual BOM row."""
+    references = [row["Reference"].strip() for row in rows]
+    for reference in selections:
+        count = references.count(reference)
+        if count == 0:
+            raise TmeError(f"AI selection Reference '{reference}' does not exist in the input BOM.")
+        if count > 1:
+            raise TmeError(f"AI selection Reference '{reference}' matches multiple input BOM rows.")
+        row = rows[references.index(reference)]
+        manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
+        if manual_symbol:
+            raise TmeError(
+                f"AI selection Reference '{reference}' conflicts with a manual TME symbol."
+            )
+
+
+def ai_selected_output(
+    row: dict[str, str],
+    symbol: str,
+    token: str,
+    options: dict[str, list[tuple[str, str, str]]],
+) -> dict[str, Any]:
+    """Load and classify one persisted AI-selected product."""
+    selected = load_selected_candidate(
+        symbol,
+        int(row["Qty"]),
+        token,
+        options or None,
+    )
+    status = "candidate_unreviewed"
+    note = "TME symbol selected by the AI; validate all stated requirements."
+    if not options:
+        status = "needs_review"
+        note = "TME symbol selected by the AI, but the footprint has no verified mapping."
+    elif not selected["footprint_match"]:
+        status = "needs_review"
+        note = "TME symbol selected by the AI, but its exact footprint is not confirmed."
+    elif selected["needs_attention"]:
+        status = "needs_attention"
+        note = (
+            f"TME symbol selected by the AI. {selected['attention_note']} "
+            "Validate all stated requirements."
+        )
+    return candidate_output(row, selected, status, note)
+
+
+def enriched_row(
+    row: dict[str, str],
+    token: str,
+    translation_file: Path,
+    ai_selections: Mapping[str, str],
+) -> dict[str, Any]:
+    """Generate helper output for one BOM row."""
+    manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
+    if manual_symbol:
+        return {
+            **row,
+            "TME Symbol": manual_symbol,
+            "TME Match Status": "manually_provided",
+            "TME Match Notes": "TME symbol was provided manually and not reviewed by the helper.",
+        }
+    options = load_footprint_options(translation_file, row["Footprint"])
+    ai_symbol = ai_selections.get(row["Reference"].strip())
+    if ai_symbol:
+        return ai_selected_output(row, ai_symbol, token, options)
+    if not options:
+        return {
+            **row,
+            "TME Match Status": "needs_review",
+            "TME Match Notes": (
+                "No verified KiCad-to-TME footprint mapping. "
+                "Use discover-footprint and map-footprint first."
+            ),
+        }
+    if not is_searchable_phrase(row["Value"]):
+        return {
+            **row,
+            "TME Match Status": "needs_review",
+            "TME Match Notes": "BOM value is unspecified or too short for a TME search.",
+        }
+    candidates = search(
+        row["Value"],
+        row["Footprint"],
+        int(row["Qty"]),
+        token,
+        options=options,
+    )
+    if not candidates:
+        return {
+            **row,
+            "TME Match Status": "no_in_stock_match",
+            "TME Match Notes": "No priced in-stock candidate found.",
+        }
+    best, safe = candidates[0], candidates[0]["footprint_match"]
+    status = "candidate_unreviewed"
+    note = "Verify all stated requirements against returned parameters."
+    if not safe:
+        status = "needs_review"
+        note = "No confirmed exact footprint; do not select without review."
+    elif best["needs_attention"]:
+        status = "needs_attention"
+        note = f"{best['attention_note']} Verify all stated requirements."
+    return candidate_output(row, best, status, note)
+
+
+def enrich(
+    input_path: Path,
+    output_path: Path,
+    token: str,
+    translation_file: Path,
+    ai_selection_file: Path | None = None,
+) -> None:
     rows, headers = bom(input_path)
+    ai_selections = load_ai_selections(ai_selection_file)
+    validate_ai_selection_references(rows, ai_selections)
     fieldnames = [*headers, *[name for name in ADDED if name not in headers]]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="", buffering=1) as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
-            if manual_symbol:
-                writer.writerow(
-                    {
-                        **row,
-                        "TME Symbol": manual_symbol,
-                        "TME Match Status": "manually_provided",
-                        "TME Match Notes": (
-                            "TME symbol was provided manually and not reviewed by the helper."
-                        ),
-                    }
-                )
-                continue
-            options = load_footprint_options(translation_file, row["Footprint"])
-            if not options:
-                writer.writerow(
-                    {
-                        **row,
-                        "TME Match Status": "needs_review",
-                        "TME Match Notes": (
-                            "No verified KiCad-to-TME footprint mapping. "
-                            "Use discover-footprint and map-footprint first."
-                        ),
-                    }
-                )
-                continue
-            if not is_searchable_phrase(row["Value"]):
-                writer.writerow(
-                    {
-                        **row,
-                        "TME Match Status": "needs_review",
-                        "TME Match Notes": (
-                            "BOM value is unspecified or too short for a TME search."
-                        ),
-                    }
-                )
-                continue
-            candidates = search(
-                row["Value"],
-                row["Footprint"],
-                int(row["Qty"]),
-                token,
-                options=options,
-            )
-            if not candidates:
-                writer.writerow(
-                    {
-                        **row,
-                        "TME Match Status": "no_in_stock_match",
-                        "TME Match Notes": "No priced in-stock candidate found.",
-                    }
-                )
-                continue
-            best, safe = candidates[0], candidates[0]["footprint_match"]
-            status = "candidate_unreviewed"
-            note = "Verify all stated requirements against returned parameters."
-            if not safe:
-                status = "needs_review"
-                note = "No confirmed exact footprint; do not select without review."
-            elif best["needs_attention"]:
-                status = "needs_attention"
-                note = f"{best['attention_note']} Verify all stated requirements."
-            writer.writerow(
-                {
-                    **row,
-                    "TME Symbol": best["symbol"],
-                    "Manufacturer Part Number": "; ".join(best["manufacturer_part_numbers"]),
-                    "TME URL": best["product_url"],
-                    "Unit Price PLN": f"{best['unit_price_pln']:.6f}",
-                    "Line Total PLN": f"{best['line_total_pln']:.6f}",
-                    "Order Qty": best["order_quantity"],
-                    "Excess Qty": best["excess_quantity"],
-                    "Stock Qty": best["stock_quantity"],
-                    "TME Match Status": status,
-                    "TME Match Notes": note,
-                }
-            )
+            writer.writerow(enriched_row(row, token, translation_file, ai_selections))
+
+
+def run_discovery(args: argparse.Namespace, access: str) -> None:
+    """Print package-related facets and sample product parameters."""
+    package_names = (
+        "case",
+        "package",
+        "footprint",
+        "housing",
+        "mounting",
+        "diameter",
+        "dimension",
+        "pitch",
+        "height",
+        "number of pins",
+    )
+    facets = search_facets(args.phrase, access)
+    relevant = [
+        facet
+        for facet in facets
+        if any(word in str(facet.get("name", "")).lower() for word in package_names)
+    ]
+    discovered = products(args.phrase, "", access, 20)
+    symbols = [str(product["symbol"]) for product in discovered]
+    product_parameters = details(symbols, access, "/products/parameters", [])
+    samples = []
+    for symbol, item in product_parameters.items():
+        parameters = [
+            parameter
+            for parameter in params(item)
+            if any(word in str(parameter.get("name", "")).lower() for word in package_names)
+        ]
+        samples.append({"symbol": symbol, "parameters": parameters})
+    print(
+        json.dumps(
+            {"parameters": relevant, "sample_products": samples},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+def run_mapping(args: argparse.Namespace, access: str) -> None:
+    """Validate and append one requested footprint mapping."""
+    exact_constraints = [parse_constraint(value) for value in args.constraint]
+    _, unresolved = constraint_filters(search_facets(args.phrase, access), exact_constraints)
+    if unresolved:
+        formatted = ", ".join(f"{parameter}={value}" for parameter, value in unresolved)
+        raise TmeError(f"TME did not expose these exact constraints: {formatted}.")
+    numeric_constraints = [parse_constraint(value) for value in args.numeric_constraint or []]
+    if numeric_constraints:
+        discovered = products(args.phrase, "", access, 100)
+        symbols = [str(product["symbol"]) for product in discovered]
+        parameters = details(symbols, access, "/products/parameters", [])
+        for parameter, expected in numeric_constraints:
+            if not any(
+                has_footprint_option(params(item), [("numeric_mm", parameter, expected)])
+                for item in parameters.values()
+            ):
+                raise TmeError(f"TME did not expose numeric {parameter}={expected}mm.")
+    append_footprint_mapping(
+        args.translation_file,
+        args.kicad_footprint,
+        [
+            *[("exact", parameter, value) for parameter, value in exact_constraints],
+            *[("numeric_mm", parameter, value) for parameter, value in numeric_constraints],
+        ],
+        args.option,
+        args.notes,
+    )
+    print(f"Updated verified footprint mappings in {args.translation_file}")
+
+
+def run_authenticated_command(args: argparse.Namespace, access: str) -> None:
+    """Dispatch a command that requires TME API authentication."""
+    if args.command == "search":
+        candidates = search(args.phrase, args.footprint, args.qty, access, args.limit)
+        print(json.dumps({"candidates": candidates}, ensure_ascii=False, indent=2))
+    elif args.command == "discover-footprint":
+        run_discovery(args, access)
+    elif args.command == "map-footprint":
+        run_mapping(args, access)
+    else:
+        enrich(
+            args.input,
+            args.output,
+            access,
+            args.translation_file,
+            args.ai_selections,
+        )
+        print(f"Wrote validated TME results to {args.output}")
 
 
 def main() -> int:
     args = arguments()
     try:
+        if args.command == "record-selection":
+            record_ai_selection(args.file, args.reference, args.symbol)
+            print(f"Recorded AI selection for {args.reference} in {args.file}")
+            return 0
         token, secret = credentials(args.env_file)
-        access = bearer(token, secret)
-        if args.command == "search":
-            print(
-                json.dumps(
-                    {
-                        "candidates": search(
-                            args.phrase, args.footprint, args.qty, access, args.limit
-                        )
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-        elif args.command == "discover-footprint":
-            facets = search_facets(args.phrase, access)
-            package_names = (
-                "case",
-                "package",
-                "footprint",
-                "housing",
-                "mounting",
-                "diameter",
-                "dimension",
-                "pitch",
-                "height",
-                "number of pins",
-            )
-            relevant = [
-                facet
-                for facet in facets
-                if any(word in str(facet.get("name", "")).lower() for word in package_names)
-            ]
-            discovered = products(args.phrase, "", access, 20)
-            symbols = [str(product["symbol"]) for product in discovered]
-            product_parameters = details(symbols, access, "/products/parameters", [])
-            samples = []
-            for symbol, item in product_parameters.items():
-                parameters = [
-                    parameter
-                    for parameter in params(item)
-                    if any(word in str(parameter.get("name", "")).lower() for word in package_names)
-                ]
-                samples.append({"symbol": symbol, "parameters": parameters})
-            print(
-                json.dumps(
-                    {"parameters": relevant, "sample_products": samples},
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-        elif args.command == "map-footprint":
-            exact_constraints = [parse_constraint(value) for value in args.constraint]
-            _, unresolved = constraint_filters(
-                search_facets(args.phrase, access), exact_constraints
-            )
-            if unresolved:
-                formatted = ", ".join(f"{parameter}={value}" for parameter, value in unresolved)
-                raise TmeError(f"TME did not expose these exact constraints: {formatted}.")
-            numeric_constraints = [
-                parse_constraint(value) for value in args.numeric_constraint or []
-            ]
-            if numeric_constraints:
-                discovered = products(args.phrase, "", access, 100)
-                symbols = [str(product["symbol"]) for product in discovered]
-                parameters = details(symbols, access, "/products/parameters", [])
-                for parameter, expected in numeric_constraints:
-                    if not any(
-                        has_footprint_option(params(item), [("numeric_mm", parameter, expected)])
-                        for item in parameters.values()
-                    ):
-                        raise TmeError(f"TME did not expose numeric {parameter}={expected}mm.")
-            append_footprint_mapping(
-                args.translation_file,
-                args.kicad_footprint,
-                [
-                    *[("exact", parameter, value) for parameter, value in exact_constraints],
-                    *[("numeric_mm", parameter, value) for parameter, value in numeric_constraints],
-                ],
-                args.option,
-                args.notes,
-            )
-            print(f"Updated verified footprint mappings in {args.translation_file}")
-        else:
-            enrich(args.input, args.output, access, args.translation_file)
-            print(f"Wrote validated TME results to {args.output}")
+        run_authenticated_command(args, bearer(token, secret))
     except TmeError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

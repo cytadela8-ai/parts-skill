@@ -3,34 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import cast
 from urllib.parse import quote
 
-from tme_parts import TmeError, details, order_qty, params, products, unit_price
-
-
-def product_records(symbol: str, token: str) -> dict[str, Any]:
-    """Load product, parameter, and current stock and price records for a TME symbol."""
-    matches = products(symbol, "", token, 20)
-    product = next(
-        (item for item in matches if str(item.get("symbol", "")).upper() == symbol.upper()),
-        None,
-    )
-    if product is None:
-        raise TmeError(f"TME product '{symbol}' was not found.")
-    actual_symbol = str(product["symbol"])
-    parameter_data = details([actual_symbol], token, "/products/parameters", [])
-    data = details(
-        [actual_symbol],
-        token,
-        "/products/data",
-        [("currency", "PLN"), ("scope[]", "stock"), ("scope[]", "prices")],
-    )
-    return {
-        "product": product,
-        "parameters": params(parameter_data.get(actual_symbol, {})),
-        "data": data.get(actual_symbol, {}),
-    }
+from tme_parts import TmeError, order_qty, product_records, unit_price
 
 
 def fetch_product(symbol: str, quantity: int, token: str) -> dict[str, object]:

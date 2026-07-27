@@ -42,6 +42,14 @@ python3 find-tme-parts/scripts/tme_parts.py map-footprint \
 # Enrich a BOM CSV with TME results
 python3 find-tme-parts/scripts/tme_parts.py csv input.csv \
   --output tme-results.csv
+
+# Persist one AI recovery-search choice by KiCad reference
+python3 find-tme-parts/scripts/tme_parts.py record-selection \
+  --file tme-ai-selections.csv --reference R1 --symbol RES-10K
+
+# Regenerate while applying every persisted AI choice
+python3 find-tme-parts/scripts/tme_parts.py csv input.csv \
+  --output tme-results.csv --ai-selections tme-ai-selections.csv
 ```
 
 ## Review a final BOM
@@ -49,11 +57,11 @@ python3 find-tme-parts/scripts/tme_parts.py csv input.csv \
 After an AI has processed an enriched CSV, launch the local review app with:
 
 ```bash
-uv run --project <skill-path> <skill-path>/find-tme-parts/scripts/review_parts.py \
+uv run --project <repo-root> <repo-root>/find-tme-parts/scripts/review_parts.py \
   AI_RESULTS.csv
 ```
 
-For this repository, `<skill-path>` is the repository root. The app opens at
+For this repository, `<repo-root>` is the repository root. The app opens at
 `http://127.0.0.1:5000`; use `--port 5050` to choose a different local port.
 
 On the first launch, it creates a sibling `AI_RESULTS-final.csv`. This file is the app's persistent
@@ -81,6 +89,12 @@ To keep a manually chosen part, add either a `TME_SYMBOL` or `TME Symbol` column
 symbol. The helper preserves the supplied symbol, sets its status to `manually_provided`, and does
 not perform footprint validation or TME lookup for that row. When both columns are present,
 `TME_SYMBOL` takes precedence.
+
+AI recovery-search choices belong in a separate two-column `Reference,TME Symbol` CSV. Use
+`record-selection` to create or update it, then pass it to `csv` with `--ai-selections`. References
+are matched exactly after trimming surrounding whitespace. For each matched row, the helper loads
+current product, price, and stock data for only that TME symbol instead of repeating automatic
+search. Unknown, duplicate, or manual-symbol references stop generation with an actionable error.
 
 Rows without a verified footprint mapping are marked `needs_review`. Results marked
 `candidate_unreviewed` must be checked against the returned TME description and parameters
