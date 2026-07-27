@@ -32,7 +32,8 @@ uv run python -m unittest discover -s tests -q
 That final CSV is the only writable state. It adds `Final Item Count`, using
 `max(Qty + 1, ceil(Qty * 1.15))` on creation and preserving every non-empty later value.
 
-The app fetches part description and parameters from TME when a row is selected. Substitution
-fetches a pasted TME symbol before atomically writing its product, pricing, stock, and status fields.
-The server listens only on `127.0.0.1`. Use `uv run --project <repo-root>
+The app fetches part description, parameters, and the API-provided primary product photo from TME
+when a row is selected. It displays the detail inline below the selected row; sorting does not change
+the CSV order. Substitution fetches a pasted TME symbol before atomically writing its product,
+pricing, stock, and status fields. The server listens only on `127.0.0.1`. Use `uv run --project <repo-root>
 find-tme-parts/scripts/review_parts.py AI_RESULTS.csv` to launch it.

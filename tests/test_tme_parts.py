@@ -221,7 +221,7 @@ class TmeReviewTests(unittest.TestCase):
     """Verify normalization of one live TME product for review."""
 
     def test_fetch_product_includes_summary_links_and_current_price(self) -> None:
-        """Expose description, parameters, price, stock, and supplied datasheet link."""
+        """Expose description, parameters, image, price, and stock."""
         review_tme = load_script_module("review_tme")
         records = {
             "product": {
@@ -230,7 +230,9 @@ class TmeReviewTests(unittest.TestCase):
                 "manufacturer_symbols": ["MFG-1"],
                 "minimal_amount": 1,
                 "multiples": 1,
-                "datasheet_url": "https://example.test/data.pdf",
+                "assets": {
+                    "primary_photo": {"prime": "//images.example.test/photo.jpg"},
+                },
             },
             "parameters": [
                 {"name": "Resistance", "values": [{"value": "10kΩ"}]},
@@ -244,7 +246,7 @@ class TmeReviewTests(unittest.TestCase):
             product = review_tme.fetch_product("ABC-1", 12, "token")
 
         self.assertEqual(product["manufacturer_part_number"], "MFG-1")
-        self.assertEqual(product["datasheet_url"], "https://example.test/data.pdf")
+        self.assertEqual(product["photo_url"], "https://images.example.test/photo.jpg")
         self.assertEqual(product["line_total_pln"], "6.000000")
         self.assertEqual(product["parameters"][0]["value"], "10kΩ")
 
@@ -343,7 +345,9 @@ class ReviewAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Final Item Count", response.data)
-        self.assertIn(b"Part details", response.data)
+        self.assertIn(b"Original Qty", response.data)
+        self.assertIn(b"Unit Price PLN", response.data)
+        self.assertIn(b"sort-button", response.data)
 
 
 def load_script_module(name: str) -> ModuleType:

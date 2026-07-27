@@ -61,8 +61,9 @@ state: it preserves the original data, selected substitutes, and manual edits ac
 app adds `Final Item Count`, initialized to the larger of one extra unit or 15% extra, rounded up.
 It never recalculates a non-empty value, so manual count edits persist.
 
-Select a row to load its current TME description and properties, with product and datasheet links
-when supplied by TME. Paste a replacement TME symbol to fetch and save its current product, price,
+Sort the wide table by any column to compare original and final counts, unit prices, and line totals.
+Select a row to expand its current TME description, API-provided product photo, properties, and
+product link inline. Paste a replacement TME symbol to fetch and save its current product, price,
 and stock fields. The app marks this selection `manually_substituted`.
 
 For numeric dimensions, use `--numeric-constraint`, for example

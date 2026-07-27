@@ -63,7 +63,7 @@ def fetch_product(symbol: str, quantity: int, token: str) -> dict[str, object]:
             str(value) for value in product.get("manufacturer_symbols", [])
         ),
         "product_url": f"https://www.tme.eu/pl/details/{quote(tme_symbol.lower(), safe='')}/",
-        "datasheet_url": datasheet_url(product),
+        "photo_url": photo_url(product),
         "parameters": normalize_parameters(parameters),
         "unit_price_pln": f"{price:.6f}",
         "line_total_pln": f"{price * ordered_quantity:.6f}",
@@ -96,10 +96,20 @@ def normalize_parameters(parameters: list[Mapping[str, object]]) -> list[dict[st
     return normalized
 
 
-def datasheet_url(product: Mapping[str, object]) -> str:
-    """Return the first documented datasheet URL exposed by a TME product record."""
-    for key in ("datasheet_url", "datasheet", "datasheetUrl"):
-        value = product.get(key)
-        if isinstance(value, str) and value.startswith(("https://", "http://")):
-            return value
+def photo_url(product: Mapping[str, object]) -> str:
+    """Return TME's primary product photo without requesting its product page."""
+    assets = product.get("assets")
+    if not isinstance(assets, Mapping):
+        return ""
+    primary_photo = cast(Mapping[str, object], assets).get("primary_photo")
+    if not isinstance(primary_photo, Mapping):
+        return ""
+    photo = cast(Mapping[str, object], primary_photo)
+    source = photo.get("prime") or photo.get("high_resolution")
+    if not isinstance(source, str):
+        return ""
+    if source.startswith("//"):
+        return f"https:{source}"
+    if source.startswith(("https://", "http://")):
+        return source
     return ""

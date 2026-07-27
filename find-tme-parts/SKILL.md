@@ -92,9 +92,10 @@ launches, and never regenerate it from the processed CSV after the user has edit
 initializes `Final Item Count` to the larger of one extra unit or 15% extra, rounded up, and
 preserves later user edits.
 
-The user selects each row to inspect the current TME description and all returned properties, uses
-the visible TME and datasheet links when present, and may paste a replacement TME symbol. The app
-fetches it through the authenticated API and persists the replacement fields with status
+The user can sort the table by any column, then select each row to inspect the current TME
+description, API-provided photo, and all returned properties inline. The visible TME product link
+opens the selected product page. The user may paste a replacement TME symbol; the app fetches it
+through the authenticated API and persists the replacement fields with status
 `manually_substituted`. Remind the user that accepting a symbol does not establish footprint safety;
 they should compare the displayed properties against the BOM footprint and stated requirements.
 
