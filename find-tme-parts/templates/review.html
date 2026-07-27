@@ -15,28 +15,40 @@
             <p class="eyebrow">Final CSV</p>
             <h2 id="bom-heading">{{ final_csv_name }}</h2>
           </div>
-          <output id="row-count" aria-live="polite"></output>
+          <div class="table-tools">
+            <output id="row-count" aria-live="polite"></output>
+            <button id="settings-button" type="button">Table settings</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th><button class="sort-button" data-key="Reference">Reference</button></th>
-                <th><button class="sort-button" data-key="Value">Value</button></th>
-                <th><button class="sort-button" data-key="Qty">Original Qty</button></th>
-                <th>
+                <th data-column="Reference">
+                  <button class="sort-button" data-key="Reference">Reference</button>
+                </th>
+                <th data-column="Value">
+                  <button class="sort-button" data-key="Value">Value</button>
+                </th>
+                <th data-column="Footprint">
+                  <button class="sort-button" data-key="Footprint">KiCad footprint</button>
+                </th>
+                <th data-column="Qty">
+                  <button class="sort-button" data-key="Qty">Original Qty</button>
+                </th>
+                <th data-column="Final Item Count">
                   <button class="sort-button" data-key="Final Item Count">Final Item Count</button>
                 </th>
-                <th>
+                <th data-column="TME Symbol">
                   <button class="sort-button" data-key="TME Symbol">Selected TME part</button>
                 </th>
-                <th>
+                <th data-column="Unit Price PLN">
                   <button class="sort-button" data-key="Unit Price PLN">Unit Price PLN</button>
                 </th>
-                <th>
+                <th data-column="Line Total PLN">
                   <button class="sort-button" data-key="Line Total PLN">Line Total PLN</button>
                 </th>
-                <th>
+                <th data-column="TME Match Status">
                   <button class="sort-button" data-key="TME Match Status">Status</button>
                 </th>
                 <th>Actions</th>
@@ -47,5 +59,12 @@
         </div>
       </section>
     </main>
+    <dialog id="settings-dialog">
+      <form method="dialog">
+        <h2>Displayed columns</h2>
+        <div id="column-settings"></div>
+        <button>Done</button>
+      </form>
+    </dialog>
   </body>
 </html>

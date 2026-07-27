@@ -8,6 +8,18 @@ const state = {
 };
 
 const table = document.querySelector("#parts-table");
+const columns = [
+  ["Reference", "Reference"],
+  ["Value", "Value"],
+  ["Footprint", "KiCad footprint"],
+  ["Qty", "Original Qty"],
+  ["Final Item Count", "Final Item Count"],
+  ["TME Symbol", "Selected TME part"],
+  ["Unit Price PLN", "Unit Price PLN"],
+  ["Line Total PLN", "Line Total PLN"],
+  ["TME Match Status", "Status"],
+];
+const visibleColumns = new Set(columns.map(([key]) => key));
 const numericColumns = new Set([
   "Qty",
   "Final Item Count",
@@ -36,14 +48,18 @@ function sortedRows() {
   return [...state.rows].sort(compareRows);
 }
 
-function rowCell(value) {
+function rowCell(value, column) {
   const cell = document.createElement("td");
+  cell.dataset.column = column;
+  cell.hidden = !visibleColumns.has(column);
   cell.textContent = value || "—";
   return cell;
 }
 
-function priceCell(value) {
+function priceCell(value, column) {
   const cell = document.createElement("td");
+  cell.dataset.column = column;
+  cell.hidden = !visibleColumns.has(column);
   if (!value) {
     cell.textContent = "—";
     return cell;
@@ -77,13 +93,14 @@ function dataRow(row) {
   element.setAttribute("aria-expanded", String(row.index === state.selected));
   element.className = "part-row";
   element.append(
-    rowCell(row.Reference),
-    rowCell(row.Value),
-    rowCell(row.Qty),
-    rowCell(row["Final Item Count"]),
-    rowCell(row["TME Symbol"]),
-    priceCell(row["Unit Price PLN"]),
-    priceCell(finalLineTotal(row)),
+    rowCell(row.Reference, "Reference"),
+    rowCell(row.Value, "Value"),
+    rowCell(row.Footprint, "Footprint"),
+    rowCell(row.Qty, "Qty"),
+    rowCell(row["Final Item Count"], "Final Item Count"),
+    rowCell(row["TME Symbol"], "TME Symbol"),
+    priceCell(row["Unit Price PLN"], "Unit Price PLN"),
+    priceCell(finalLineTotal(row), "Line Total PLN"),
     statusCell(row),
     actionsCell(row),
   );
@@ -96,6 +113,8 @@ function dataRow(row) {
 
 function actionsCell(row) {
   const cell = document.createElement("td");
+  cell.dataset.column = "TME Match Status";
+  cell.hidden = !visibleColumns.has("TME Match Status");
   cell.className = "row-actions";
   cell.append(rowAction("Approve", row.index, "approve"));
   cell.append(rowAction("Not needed", row.index, "not-needed"));
@@ -128,7 +147,7 @@ function detailRow(row) {
   const rowElement = document.createElement("tr");
   rowElement.className = "detail-row";
   const cell = document.createElement("td");
-  cell.colSpan = 9;
+  cell.colSpan = visibleColumns.size + 1;
   cell.append(detailPanel(row));
   rowElement.append(cell);
   return rowElement;
@@ -344,6 +363,37 @@ for (const button of document.querySelectorAll(".sort-button")) {
     renderRows();
   });
 }
+
+function renderColumnSettings() {
+  const settings = document.querySelector("#column-settings");
+  for (const [key, label] of columns) {
+    const field = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.checked = visibleColumns.has(key);
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) visibleColumns.add(key);
+      else visibleColumns.delete(key);
+      updateColumnVisibility(key);
+      renderRows();
+    });
+    field.append(checkbox, label);
+    settings.append(field);
+  }
+}
+
+function updateColumnVisibility(column) {
+  const visible = visibleColumns.has(column);
+  for (const cell of document.querySelectorAll(`[data-column="${column}"]`)) {
+    cell.hidden = !visible;
+  }
+}
+
+document.querySelector("#settings-button").addEventListener("click", () => {
+  document.querySelector("#settings-dialog").showModal();
+});
+
+renderColumnSettings();
 
 reloadRows().catch((error) => {
   table.append(detailMessage(error.message));

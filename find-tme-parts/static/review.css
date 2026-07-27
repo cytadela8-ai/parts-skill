@@ -16,6 +16,8 @@ h2, p { margin-top: 0; }
 .bom-panel { box-shadow: 0 10px 30px #26375a0c; overflow: hidden; }
 .panel-heading { align-items: center; display: flex; justify-content: space-between; }
 .panel-heading { padding: .65rem 1rem; }
+.table-tools { align-items: center; display: flex; gap: .6rem; }
+.table-tools button { font-size: .75rem; padding: .35rem .5rem; }
 .panel-heading h2 { font-size: 1rem; margin-bottom: 0; }
 .panel-heading .eyebrow { margin-bottom: .15rem; }
 .table-wrap { max-height: calc(100vh - 7rem); overflow: auto; }
@@ -67,6 +69,11 @@ dd { margin: 0; }
 .status-no_in_stock_match, .status-no_safe_match { background: #fde7e7; color: #8a2c34; }
 .status-candidate_unreviewed { background: #e8edff; color: #354b9b; }
 .status-not_needed { background: #eceff3; color: #4b5563; }
+dialog { border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 16px 40px #17203340; }
+dialog form { display: grid; gap: .8rem; min-width: 16rem; }
+#column-settings { display: grid; gap: .45rem; }
+#column-settings label { align-items: center; display: flex; font-size: .9rem; gap: .5rem; }
+#column-settings input { width: auto; }
 
 @media (max-width: 800px) {
   .site-header, .review-layout { padding-inline: 1rem; }
