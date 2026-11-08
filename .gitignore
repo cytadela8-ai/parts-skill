@@ -8,3 +8,8 @@ parts-data/
 .pytest_cache/
 .playwright-mcp/
 dist/
+
+# Local project inputs and working exports; reviewed fixtures remain tracked.
+/*tme-results*.csv
+.*.csv.lock
+*.log
