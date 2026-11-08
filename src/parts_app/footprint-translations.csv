@@ -23,3 +23,9 @@ Diode_SMD:D_SMB,default,exact,Case,SMB,KiCad SMB diode footprint
 Diode_SMD:D_SMB,default,exact,Mounting,SMD,KiCad SMB diode footprint
 Package_TO_SOT_SMD:TO-252-2,default,exact,Case,DPAK,KiCad two-terminal DPAK footprint; exact-MPN check remains required
 Package_TO_SOT_SMD:TO-252-2,default,exact,Mounting,SMD,KiCad two-terminal DPAK footprint; exact-MPN check remains required
+Capacitor_SMD:C_0402_1005Metric,default,exact,Case - inch,0402,KiCad 1005 metric / 0402 imperial SMD capacitor
+Capacitor_SMD:C_0402_1005Metric,default,exact,Mounting,SMD,KiCad 1005 metric / 0402 imperial SMD capacitor
+Inductor_SMD:L_1210_3225Metric,default,exact,Case - inch,1210,KiCad 3225 metric / 1210 imperial SMD inductor
+Inductor_SMD:L_1210_3225Metric,default,exact,Mounting,SMD,KiCad 3225 metric / 1210 imperial SMD inductor
+Inductor_SMD:L_0402_1005Metric,default,exact,Case - inch,0402,KiCad 1005 metric / 0402 imperial SMD inductor
+Inductor_SMD:L_0402_1005Metric,default,exact,Mounting,SMD,KiCad 1005 metric / 0402 imperial SMD inductor

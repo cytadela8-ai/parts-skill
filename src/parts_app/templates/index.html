@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" href="data:," />
+    <title>Parts desk · TME</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header>
+      <span>ENGINEERING / SOURCING</span>
+      <h1>Parts desk<span class="dot">.</span></h1>
+      <p>Find components. Check the evidence. Make the final call.</p>
+    </header>
+    <main>
+      <section class="toolbar">
+        <form id="upload">
+          <label
+            >Import BOM or previous CSV
+            <input name="file" type="file" accept=".csv" required /></label
+          ><button>Import</button>
+        </form>
+        <label
+          >Project
+          <select id="project"></select></label
+        ><a id="export">Export CSV</a> <a id="basket">Basket CSV</a
+        ><a href="/api/backup">Back up project database</a>
+      </section>
+      <section class="toolbar">
+        <input id="filter" placeholder="Filter references, values, statuses…" />
+        <button id="all">Select all filtered</button><button id="none">Clear selection</button>
+        <span id="selection">0 selected</span
+        ><select id="procedure">
+          <option value="search">Search TME</option>
+          <option value="validate">Validate selections</option>
+          <option value="both">Search then validate</option>
+        </select>
+        <button id="preview">Preview run</button>
+      </section>
+      <dialog id="import-dialog">
+        <h2>Preview CSV import</h2>
+        <p id="import-summary"></p>
+        <pre id="import-preview"></pre>
+        <button id="confirm-import">Import these rows</button>
+        <button id="cancel-import">Back</button>
+      </dialog>
+      <dialog id="run-dialog">
+        <h2>Run selected procedures</h2>
+        <p id="run-summary"></p>
+        <div id="run-plan"></div>
+        <label
+          >Maximum inference spend, USD
+          <input id="allowance" type="number" step="0.001" min="0.001"
+        /></label>
+        <p>
+          Protected rows are skipped by search. Validation can assess manual selections.
+          Compatibility checks highlight conflicts and missing evidence; human approval is separate.
+          In-flight requests may still cost money after pause/cancel.
+        </p>
+        <button id="run">Run procedures</button><button id="close">Back</button>
+      </dialog>
+      <p id="error" role="alert"></p>
+      <p id="spend" class="spend"></p>
+      <section id="runs" aria-live="polite"></section>
+      <div class="layout">
+        <section class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th><button id="sort">Reference ↕</button></th>
+                <th>Value / footprint</th>
+                <th>TME selection</th>
+                <th>Human review</th>
+                <th>Agent checks</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </section>
+        <aside id="detail">
+          <p class="muted">Select a component to inspect its evidence and review it.</p>
+        </aside>
+      </div>
+      <details>
+        <summary>Recent run evidence and costs</summary>
+        <pre id="events"></pre>
+      </details>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

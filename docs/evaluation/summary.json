@@ -1,0 +1,62 @@
+{
+  "validation": {
+    "VFD-disp-tme-results-final.csv": {
+      "rows": 23,
+      "errors": 0,
+      "selected": 23,
+      "exact_human_selection": 23,
+      "verdicts": {
+        "needs_review": 14,
+        "no_safe_match": 9
+      },
+      "inference_usd": 0.01436723,
+      "max_inference_usd": 0.0010633
+    },
+    "tme-results-final.csv": {
+      "rows": 17,
+      "errors": 0,
+      "selected": 17,
+      "exact_human_selection": 17,
+      "verdicts": {
+        "needs_review": 17
+      },
+      "inference_usd": 0.0084271,
+      "max_inference_usd": 0.0006019
+    }
+  },
+  "blind_search": {
+    "VFD-disp-tme-results-final.csv": {
+      "rows": 23,
+      "errors": 0,
+      "selected": 18,
+      "exact_human_selection": 2,
+      "verdicts": {
+        "needs_review": 17,
+        "no_safe_match": 6
+      },
+      "inference_usd": 0.021073289999999998,
+      "max_inference_usd": 0.002154
+    },
+    "tme-results-final.csv": {
+      "rows": 17,
+      "errors": 0,
+      "selected": 16,
+      "exact_human_selection": 7,
+      "verdicts": {
+        "needs_review": 17
+      },
+      "inference_usd": 0.0170954,
+      "max_inference_usd": 0.001241
+    }
+  },
+  "negative_controls": {
+    "rows": 5,
+    "flagged": 5,
+    "errors": 0
+  },
+  "all_experiments": {
+    "attempts": 248,
+    "known_inference_usd": 0.15305721,
+    "uncertain_reservations_usd": 0.0312664
+  }
+}
