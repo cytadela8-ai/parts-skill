@@ -1,0 +1,48 @@
+Reference,Qty,Value,Footprint,Datasheet,TME Symbol,Manufacturer Part Number,TME URL,Unit Price PLN,Line Total PLN,Order Qty,Excess Qty,Stock Qty,TME Match Status,TME Match Notes,Final Item Count
+"C1,C5,C7,C9,C11,C13,C14,C15,C16,C17,C22,C27,C30,C31,C32,C33,C45,C49,C50,C52,C53,C54",22,100nF,Capacitor_SMD:C_0402_1005Metric,,GRM155R71H104ME14D,GRM155R71H104ME14D,https://www.tme.eu/pl/details/grm155r71h104me14d/,0.014990,14.990000,22,0,19692,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,1000
+"C3,C4,C6,C8,C12,C51",6,10uF,Capacitor_SMD:C_2220_5750Metric,,C5750X5R1H106KKA,C5750X5R1H106K230KA,https://www.tme.eu/pl/details/c5750x5r1h106kka/,4.507000,27.042000,6,0,19,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,7
+C10,1,10nF,Capacitor_SMD:C_0402_1005Metric,,C0402C103K3RAC7867,C0402C103K3RAC7867,https://www.tme.eu/pl/details/c0402c103k3rac7867/,0.046850,0.046850,1,0,9295,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,2
+"C18,C19",2,10pF,Capacitor_SMD:C_0402_1005Metric,,GRM1555C1H100JA01D,GRM1555C1H100JA01D,https://www.tme.eu/pl/details/grm1555c1h100ja01d/,0.127640,0.255280,2,0,13893,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,3
+"C20,C21,C23",3,C,Capacitor_SMD:C_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+C24,1,100pF,Capacitor_SMD:C_0402_1005Metric,,VJ0402A101JXACW1BC,VJ0402A101JXACW1BC,https://www.tme.eu/pl/details/vj0402a101jxacw1bc/,0.084310,0.084310,1,0,19876,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,2
+"C25,C26",2,1uF,Capacitor_SMD:C_0805_2012Metric,,CC0805KKX7R7BB105,CC0805KKX7R7BB105,https://www.tme.eu/pl/details/cc0805kkx7r7bb105/,0.200300,0.400600,2,0,216,not needed,Marked not needed in the review app.,0
+C28,1,820pF,Capacitor_SMD:C_0402_1005Metric,,GRM1555C1H821JA01D,GRM1555C1H821JA01D,https://www.tme.eu/pl/details/grm1555c1h821ja01d/,0.134610,0.134610,1,0,4710,validated_match,Component value type and verified footprint match the BOM; ratings and other characteristics were not specified by the BOM.,2
+"C29,C34,C46",3,4.7uF,Capacitor_SMD:C_0805_2012Metric,,GRM21BR71C475KE51L,GRM21BR71C475KE51L,https://www.tme.eu/pl/details/grm21br71c475ke51l/,0.212400,0.637200,3,0,110,not needed,Marked not needed in the review app.,0
+"C35,C36,C37",3,1pF,Capacitor_SMD:C_0402_1005Metric,,GRM1555C1H1R0BA01D,GRM1555C1H1R0BA01D,https://www.tme.eu/pl/details/grm1555c1h1r0ba01d/,0.177310,0.531930,3,0,932,validated_match,Component value and verified 0402/1005 footprint match the BOM; RF tolerance was not specified.,4
+D1,1,LED,LED_SMD:LED_1206_3216Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+D2,1,max 5.5V,Diode_SMD:D_SOD-323,,,,,,,,,,not needed,Marked not needed in the review app.,0
+D10,1,LED,LED_SMD:LED_0805_2012Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+F3,1,Fuse,Fuse:Fuse_1206_3216Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+J1,1,Conn_02x05_Odd_Even,Connector_IDC:IDC-Header_2x05_P2.54mm_Vertical,,ZL231-10PG,DS1013-10SSIB1-B-0,https://www.tme.eu/pl/details/zl231-10pg/,0.419100,4.191000,10,10,203090,manually_substituted,Replacement TME symbol selected in the review app.,10
+"J2,J3,J5,J6,J7,J8,J9",7,Conn_01x03_MountingPin,Connector_JST:JST_PH_S3B-PH-SM4-TB_1x03-1MP_P2.00mm_Horizontal,,,,,,,,,,not needed,Marked not needed in the review app.,0
+J4,1,USB_C_Receptacle_USB2.0_14P,Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,https://www.usb.org/sites/default/files/documents/usb_type-c.zip,,,,,,,,,not needed,Marked not needed in the review app.,0
+J10,1,Conn_01x08_MountingPin,Connector_JST:JST_PH_S8B-PH-SM4-TB_1x08-1MP_P2.00mm_Horizontal,,,,,,,,,,not needed,Marked not needed in the review app.,0
+J11,1,Conn_02x10_Odd_Even,Connector_PinHeader_2.54mm:PinHeader_2x10_P2.54mm_Vertical,,,,,,,,,,not needed,Marked not needed in the review app.,0
+J12,1,Conn_01x02_MountingPin,Connector_JST:JST_SH_SM02B-SRSS-TB_1x02-1MP_P1.00mm_Horizontal,,,,,,,,,,not needed,Marked not needed in the review app.,0
+J13,1,Conn_01x04_MountingPin,Connector_JST:JST_PH_S4B-PH-SM4-TB_1x04-1MP_P2.00mm_Horizontal,,,,,,,,,,not needed,Marked not needed in the review app.,0
+L1,1,22uH,Inductor_SMD:L_1210_3225Metric,,NLCV32T-220K-EF,NLCV32T-220K-EF,https://www.tme.eu/pl/details/nlcv32t-220k-ef/,0.580000,0.580000,1,0,7251,validated_match,22uH SMD inductor and verified 1210/3225 footprint match the BOM; current DCR and saturation requirements were not specified.,2
+"L2,L3,L7",3,10uH,Inductor_SMD:L_1210_3225Metric,,NLV32T-100J-PF,NLV32T-100J-PF,https://www.tme.eu/pl/details/nlv32t-100j-pf/,0.463000,1.389000,3,0,504,validated_match,10uH SMD inductor and verified 1210/3225 footprint match the BOM; current DCR and saturation requirements were not specified.,4
+L4,1,3.9nH,Inductor_SMD:L_0402_1005Metric,,LQG15HS3N9B02D,LQG15HS3N9B02D,https://www.tme.eu/pl/details/lqg15hs3n9b02d/,0.310800,0.310800,1,0,438,validated_match,3.9nH RF inductor and verified 0402/1005 footprint match the BOM; Q and current requirements were not specified.,2
+L5,1,4.7nH,Inductor_SMD:L_0402_1005Metric,,LQG15HN4N7S02D,LQG15HN4N7S02D,https://www.tme.eu/pl/details/lqg15hn4n7s02d/,0.225100,0.225100,1,0,11388,validated_match,4.7nH RF inductor and verified 0402/1005 footprint match the BOM; Q and current requirements were not specified.,2
+L6,1,4.3nH,Inductor_SMD:L_0402_1005Metric,,LQG15HN4N3S02D,LQG15HN4N3S02D,https://www.tme.eu/pl/details/lqg15hn4n3s02d/,0.326500,0.326500,1,0,8305,validated_match,4.3nH RF inductor and verified 0402/1005 footprint match the BOM; Q and current requirements were not specified.,2
+"R10,R11",2,0R,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+R12,1,240K,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+R13,1,100K,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+R14,1,0R,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+"R15,R17",2,33R,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+"R16,R19",2,5.1K,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+"R18,R20",2,"4,7k",Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+R25,1,10K,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+"R38,R39",2,10k,Resistor_SMD:R_0402_1005Metric,,,,,,,,,,not needed,Marked not needed in the review app.,0
+SC1,1,Solar_Cells connector,Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal,,,,,,,,,,not needed,Marked not needed in the review app.,0
+SC2,1,Solar_Cells connector,"Connector_Phoenix_MC_HighVoltage:PhoenixContact_MCV_1,5_2-G-5.08_1x02_P5.08mm_Vertical",,,,,,,,,,not needed,Marked not needed in the review app.,0
+"SW1,SW2,SW3",3,SW_SPST,Button_Switch_SMD:SW_SPST_B3S-1000,,TACTM-64N-F,TACTM-64N-F,https://www.tme.eu/pl/details/tactm-64n-f/,0.673000,2.692000,10,6,1511,manually_substituted,Replacement TME symbol selected in the review app.,4
+U2,1,BQ25570,Package_DFN_QFN:QFN-20-1EP_3.5x3.5mm_P0.5mm_EP2x2mm,http://www.ti.com/lit/ds/symlink/bq25570.pdf,,,,,,,,,not needed,Marked not needed in the review app.,0
+U3,1,479480001,479480001:ANT_47948-0001_MOL,,479480001,479480001,https://www.tme.eu/pl/details/479480001/,5.710000,5.710000,2,0,2430,manually_substituted,Replacement TME symbol selected in the review app.,1
+U4,1,MCP73832-2-OT,Package_TO_SOT_SMD:SOT-23-5,http://ww1.microchip.com/downloads/en/DeviceDoc/20001984g.pdf,MCP73832T-2ACI/OT,MCP73832T-2ACI/OT,https://www.tme.eu/pl/details/mcp73832t-2aci%2Fot/,5.210000,10.420000,2,0,3727,manually_substituted,Replacement TME symbol selected in the review app.,2
+U5,1,TPS2553DRVR,TPS2553DRVR:SON65P200X200X80-7N,,,,,,,,,,not needed,Marked not needed in the review app.,0
+U6,1,MX25R3235FZNxx0,Package_SON:WSON-8-1EP_6x5mm_P1.27mm_EP3.4x4mm,"http://www.macronix.com/Lists/Datasheet/Attachments/7534/MX25R3235F,%20Wide%20Range,%2032Mb,%20v1.6.pdf",,,,,,,,,not needed,Marked not needed in the review app.,0
+U7,1,24LC64,Package_SO:TSSOP-8_4.4x3mm_P0.65mm,http://ww1.microchip.com/downloads/en/DeviceDoc/21189f.pdf,,,,,,,,,not needed,Marked not needed in the review app.,0
+U8,1,BME680,Package_LGA:Bosch_LGA-8_3x3mm_P0.8mm_ClockwisePinNumbering,https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BME680-DS001.pdf,,,,,,,,,not needed,Marked not needed in the review app.,0
+Y1,1,32MHz,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,,CX3225FB32000F0FZZ,CX3225FB32000F0FZZH1,https://www.tme.eu/pl/details/cx3225fb32000f0fzz/,0.861000,1.722000,2,0,2963,manually_substituted,Replacement TME symbol selected in the review app.,2
+Y2,1,Crystal_GND23,Crystal:Crystal_SMD_Abracon_ABS25-4Pin_8.0x3.8mm,,,,,,,,,,not needed,Marked not needed in the review app.,0

@@ -1,24 +1,25 @@
-#!/usr/bin/env python3
 """Search TME's API for in-stock Polish-market component candidates."""
 
 from __future__ import annotations
-import argparse
+
 import base64
 import csv
 import json
 import math
 import os
 import re
-import sys
 from collections.abc import Iterable, Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from parts_app import progress
+
 API = "https://api.tme.eu"
-TRANSLATION_FILE = Path(__file__).parents[1] / "footprint-translations.csv"
+TRANSLATION_FILE = Path(__file__).with_name("footprint-translations.csv")
 REQUIRED = ("Reference", "Value", "Footprint", "Qty")
 TRANSLATION_COLUMNS = (
     "kicad_footprint",
@@ -47,57 +48,6 @@ class TmeError(RuntimeError):
     """Describe an actionable input or TME API error."""
 
 
-def positive(value: str) -> int:
-    try:
-        number = int(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError("must be a positive integer") from error
-    if number < 1:
-        raise argparse.ArgumentTypeError("must be a positive integer")
-    return number
-
-
-def arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    search = commands.add_parser("search", help="Search one component.")
-    search.add_argument("--phrase", required=True)
-    search.add_argument("--footprint", required=True)
-    search.add_argument("--qty", required=True, type=positive)
-    search.add_argument("--limit", default=100, type=int)
-    search.add_argument("--env-file", default=Path(".env"), type=Path)
-    discover = commands.add_parser(
-        "discover-footprint", help="List TME package-related parameter terms."
-    )
-    discover.add_argument("--phrase", required=True)
-    discover.add_argument("--env-file", default=Path(".env"), type=Path)
-    mapping = commands.add_parser(
-        "map-footprint", help="Verify and store a KiCad-to-TME footprint mapping."
-    )
-    mapping.add_argument("--kicad-footprint", required=True)
-    mapping.add_argument("--phrase", required=True)
-    mapping.add_argument("--constraint", action="append", required=True)
-    mapping.add_argument("--numeric-constraint", action="append")
-    mapping.add_argument("--option", default="default")
-    mapping.add_argument("--notes", default="")
-    mapping.add_argument("--translation-file", default=TRANSLATION_FILE, type=Path)
-    mapping.add_argument("--env-file", default=Path(".env"), type=Path)
-    batch = commands.add_parser("csv", help="Validate and enrich a BOM CSV.")
-    batch.add_argument("input", type=Path)
-    batch.add_argument("--output", required=True, type=Path)
-    batch.add_argument("--ai-selections", type=Path)
-    batch.add_argument("--translation-file", default=TRANSLATION_FILE, type=Path)
-    batch.add_argument("--env-file", default=Path(".env"), type=Path)
-    selection = commands.add_parser(
-        "record-selection",
-        help="Record an AI-selected TME symbol for one BOM reference.",
-    )
-    selection.add_argument("--file", required=True, type=Path)
-    selection.add_argument("--reference", required=True)
-    selection.add_argument("--symbol", required=True)
-    return parser.parse_args()
-
-
 def credentials(env_file: Path) -> tuple[str, str]:
     values = dict(os.environ)
     if env_file.exists():
@@ -118,9 +68,8 @@ def request(url: str, headers: Mapping[str, str], data: bytes | None = None) -> 
         with urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
-        raise TmeError(
-            f"TME API returned HTTP {error.code}: {error.read().decode('utf-8', errors='replace')[:400]}"
-        ) from error
+        message = error.read().decode("utf-8", errors="replace")[:400]
+        raise TmeError(f"TME API returned HTTP {error.code}: {message}") from error
     except URLError as error:
         raise TmeError(f"Could not reach TME API: {error.reason}") from error
     except json.JSONDecodeError as error:
@@ -147,8 +96,20 @@ def bearer(token: str, secret: str) -> str:
 
 
 def get(path: str, token: str, pairs: Iterable[tuple[str, str]]) -> dict[str, Any]:
+    pairs = list(pairs)
+    names = {
+        "/products/search": "Searching supplier catalogue",
+        "/products/parameters": "Downloading component parameters",
+        "/products/data": "Downloading prices and stock",
+        "/products": "Loading selected supplier component",
+    }
+    symbols = sum(key == "symbols[]" for key, _ in pairs)
+    page = next((value for key, value in pairs if key == "page"), "1")
+    detail = names.get(path, "Reading supplier data")
+    detail += f" ({symbols} parts)" if symbols else f" (page {page})"
+    progress.activity(detail)
     return request(
-        f"{API}{path}?{urlencode(list(pairs), doseq=True)}",
+        f"{API}{path}?{urlencode(pairs, doseq=True)}",
         {"Authorization": f"Bearer {token}"},
     )
 
@@ -235,23 +196,6 @@ def has_footprint_options(
 ) -> bool:
     """Accept a product that fulfils any documented footprint option."""
     return any(has_footprint_option(parameters, option) for option in options.values())
-
-
-def search_facets(phrase: str, token: str) -> list[dict[str, Any]]:
-    """Return TME parameter facets for a focused discovery search."""
-    if not is_searchable_phrase(phrase) or len(phrase) > 40:
-        raise TmeError("Search phrase must have 2 to 40 characters.")
-    data = get(
-        "/products/search",
-        token,
-        [
-            ("country", "PL"),
-            ("scope[]", "parameters"),
-            ("phrase", phrase),
-            ("limit", "100"),
-        ],
-    ).get("data", {})
-    return nested(data, "parameters", "elements")
 
 
 def constraint_filters(
@@ -342,17 +286,15 @@ def products(
         filters = package_filter(facets, footprint)
     if filters:
         data = get("/products/search", token, [*base, *filters]).get("data", {})
-    return nested(data, "products", "elements")
-
-
-def parse_constraint(value: str) -> tuple[str, str]:
-    """Parse one PARAMETER=VALUE mapping constraint."""
-    if "=" not in value:
-        raise TmeError("Constraints must use PARAMETER=VALUE syntax.")
-    parameter, expected = (part.strip() for part in value.split("=", 1))
-    if not parameter or not expected:
-        raise TmeError("Constraints require both a parameter and a value.")
-    return parameter, expected
+    found = nested(data, "products", "elements")
+    for page in (2, 3):
+        if len(found) < (page - 1) * limit:
+            break
+        data = get("/products/search", token, [*base, *filters, ("page", str(page))]).get(
+            "data", {}
+        )
+        found.extend(nested(data, "products", "elements"))
+    return found
 
 
 def append_footprint_mapping(
@@ -386,58 +328,6 @@ def append_footprint_mapping(
             )
 
 
-def load_ai_selections(path: Path | None) -> dict[str, str]:
-    """Load AI-selected TME symbols keyed by exact KiCad reference."""
-    if path is None or not path.exists() or path.stat().st_size == 0:
-        return {}
-    try:
-        with path.open(encoding="utf-8-sig", newline="") as file:
-            reader = csv.DictReader(file)
-            headers = tuple(str(header) for header in reader.fieldnames or [])
-            if headers != AI_SELECTION_COLUMNS:
-                raise TmeError(
-                    f"AI selection CSV must have columns: {', '.join(AI_SELECTION_COLUMNS)}."
-                )
-            selections: dict[str, str] = {}
-            for row_number, row in enumerate(reader, start=2):
-                reference = str(row["Reference"] or "").strip()
-                symbol = str(row["TME Symbol"] or "").strip()
-                if not reference or not symbol:
-                    raise TmeError(
-                        f"AI selection CSV row {row_number} needs Reference and TME Symbol."
-                    )
-                if reference in selections:
-                    raise TmeError(f"AI selection CSV contains duplicate Reference '{reference}'.")
-                selections[reference] = symbol
-            return selections
-    except OSError as error:
-        raise TmeError(f"Could not read AI selection CSV {path}: {error}") from error
-
-
-def record_ai_selection(path: Path, reference: str, symbol: str) -> None:
-    """Create or replace one AI selection while preserving reference order."""
-    reference = reference.strip()
-    symbol = symbol.strip()
-    if not reference or not symbol:
-        raise TmeError("AI selections require a non-empty reference and TME symbol.")
-    selections = load_ai_selections(path)
-    selections[reference] = symbol
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with path.open("w", encoding="utf-8", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=AI_SELECTION_COLUMNS)
-            writer.writeheader()
-            for saved_reference, saved_symbol in selections.items():
-                writer.writerow(
-                    {
-                        "Reference": saved_reference,
-                        "TME Symbol": saved_symbol,
-                    }
-                )
-    except OSError as error:
-        raise TmeError(f"Could not write AI selection CSV {path}: {error}") from error
-
-
 def batches(items: list[str]) -> Iterable[list[str]]:
     for start in range(0, len(items), 50):
         yield items[start : start + 50]
@@ -463,7 +353,9 @@ def details(
 
 def product_records(symbol: str, token: str) -> dict[str, Any]:
     """Load the exact product, parameters, price, and stock for a TME symbol."""
-    matches = products(symbol, "", token, 20)
+    matches = nested(
+        get("/products", token, [("country", "PL"), ("symbols[]", symbol)]), "data", "elements"
+    )
     product = next(
         (item for item in matches if str(item.get("symbol", "")).upper() == symbol.strip().upper()),
         None,
@@ -515,12 +407,10 @@ def has_footprint(parameters: list[dict[str, Any]], footprint: str) -> bool:
         ("case", "package", "footprint", "housing", "mounting"),
     )
     for parameter in parameters:
-        if any(word in str(parameter.get("name", "")).lower() for word in names):
-            if any(
-                norm(str(value.get("value", ""))) == expected
-                for value in nested(parameter, "values")
-            ):
-                return True
+        if any(word in str(parameter.get("name", "")).lower() for word in names) and any(
+            norm(str(value.get("value", ""))) == expected for value in nested(parameter, "values")
+        ):
+            return True
     return False
 
 
@@ -541,8 +431,10 @@ def select_preferred_candidate(candidates: list[dict[str, Any]]) -> dict[str, An
     if not candidates:
         raise TmeError("Cannot select a preferred candidate from an empty list.")
     for candidate in candidates:
-        line_total = candidate["order_quantity"] * candidate["unit_price_pln"]
-        candidate["line_total_pln"] = round(line_total, 6)
+        line_total = Decimal(candidate["order_quantity"]) * Decimal(
+            str(candidate["unit_price_pln"])
+        )
+        candidate["line_total_pln"] = float(round(line_total, 6))
         requested = int(candidate.get("requested_quantity", candidate["order_quantity"]))
         candidate["excess_quantity"] = candidate["order_quantity"] - requested
         candidate["needs_attention"] = candidate["order_quantity"] >= 1000
@@ -556,7 +448,8 @@ def select_preferred_candidate(candidates: list[dict[str, Any]]) -> dict[str, An
     affordable_extra_stock = [
         candidate
         for candidate in candidates
-        if candidate["line_total_pln"] <= cheapest_total * 1.25
+        if Decimal(str(candidate["line_total_pln"]))
+        <= Decimal(str(cheapest_total)) * Decimal("1.25")
     ]
     return min(
         affordable_extra_stock,
@@ -588,6 +481,8 @@ def load_selected_candidate(
     quantity: int,
     token: str,
     options: dict[str, list[tuple[str, str, str]]] | None,
+    *,
+    allow_unpriced: bool = False,
 ) -> dict[str, Any]:
     """Load current data for exactly one AI-selected TME product."""
     records = product_records(symbol, token)
@@ -596,13 +491,14 @@ def load_selected_candidate(
     product_parameters = records["parameters"]
     order = order_qty(product, quantity)
     price = unit_price(data, order)
-    if price is None:
+    if price is None and not allow_unpriced:
         raise TmeError(f"TME returned no PLN price for AI-selected product '{symbol}'.")
     stock = int(data.get("stock_quantity") or 0)
     candidate = {
         "symbol": str(product["symbol"]),
         "manufacturer_part_numbers": product.get("manufacturer_symbols", []),
         "description": product.get("description", ""),
+        "photo_url": photo_url(product),
         "product_url": (
             f"https://www.tme.eu/pl/details/{quote(str(product['symbol']).lower(), safe='')}/"
         ),
@@ -616,7 +512,15 @@ def load_selected_candidate(
         "parameters": product_parameters,
         "parameter_summary": summary(product_parameters),
     }
-    select_preferred_candidate([candidate])
+    if price is None:
+        candidate.update(
+            line_total_pln=None,
+            excess_quantity=order - quantity,
+            needs_attention=True,
+            attention_note="Current PLN price unavailable.",
+        )
+    else:
+        select_preferred_candidate([candidate])
     if stock < order:
         candidate["needs_attention"] = True
         candidate["attention_note"] = (
@@ -657,7 +561,10 @@ def search(
                     "manufacturer": (product.get("manufacturer") or {}).get("name"),
                     "manufacturer_part_numbers": product.get("manufacturer_symbols", []),
                     "description": product.get("description", ""),
-                    "product_url": f"https://www.tme.eu/pl/details/{quote(symbol.lower(), safe='')}/",
+                    "photo_url": photo_url(product),
+                    "product_url": (
+                        f"https://www.tme.eu/pl/details/{quote(symbol.lower(), safe='')}/"
+                    ),
                     "requested_quantity": quantity,
                     "order_quantity": order,
                     "minimum_order_quantity": int(product.get("minimal_amount") or 1),
@@ -676,300 +583,10 @@ def search(
     return rank_candidates(candidates)
 
 
-def read_bom_rows(path: Path) -> tuple[list[dict[str, str]], list[str]]:
-    """Read BOM rows and validate the CSV shape."""
-    try:
-        with path.open(encoding="utf-8-sig", newline="") as file:
-            reader = csv.DictReader(file)
-            headers: list[str] = [str(header) for header in reader.fieldnames or []]
-            missing = [column for column in REQUIRED if column not in headers]
-            if missing:
-                raise TmeError(f"CSV is missing required column(s): {', '.join(missing)}.")
-            rows: list[dict[str, str]] = []
-            for raw_row in reader:
-                if None in raw_row:
-                    raise TmeError(f"CSV {path} has more values than its header.")
-                rows.append({str(key): str(value or "") for key, value in raw_row.items()})
-    except OSError as error:
-        raise TmeError(f"Could not read {path}: {error}") from error
-
-    return rows, headers
-
-
-def validate_bom_rows(rows: list[dict[str, str]]) -> None:
-    """Validate required values in parsed BOM rows."""
-    if not rows:
-        raise TmeError("CSV has no data rows.")
-    for row_number, row in enumerate(rows, start=2):
-        try:
-            positive(row["Qty"])
-        except argparse.ArgumentTypeError as error:
-            raise TmeError(f"CSV row {row_number} has invalid Qty: {error}.") from error
-        if not row["Value"].strip() or not row["Footprint"].strip():
-            raise TmeError(f"CSV row {row_number} needs non-empty Value and Footprint.")
-
-
-def bom(path: Path) -> tuple[list[dict[str, str]], list[str]]:
-    """Load and validate one BOM CSV."""
-    rows, headers = read_bom_rows(path)
-    validate_bom_rows(rows)
-    return rows, headers
-
-
-def candidate_output(
-    row: dict[str, str],
-    candidate: Mapping[str, Any],
-    status: str,
-    note: str,
-) -> dict[str, Any]:
-    """Combine one BOM row with normalized selected-candidate fields."""
-    return {
-        **row,
-        "TME Symbol": candidate["symbol"],
-        "Manufacturer Part Number": "; ".join(candidate["manufacturer_part_numbers"]),
-        "TME URL": candidate["product_url"],
-        "Unit Price PLN": f"{candidate['unit_price_pln']:.6f}",
-        "Line Total PLN": f"{candidate['line_total_pln']:.6f}",
-        "Order Qty": candidate["order_quantity"],
-        "Excess Qty": candidate["excess_quantity"],
-        "Stock Qty": candidate["stock_quantity"],
-        "TME Match Status": status,
-        "TME Match Notes": note,
-    }
-
-
-def validate_ai_selection_references(
-    rows: list[dict[str, str]], selections: Mapping[str, str]
-) -> None:
-    """Require every selection key to identify one non-manual BOM row."""
-    references = [row["Reference"].strip() for row in rows]
-    for reference in selections:
-        count = references.count(reference)
-        if count == 0:
-            raise TmeError(f"AI selection Reference '{reference}' does not exist in the input BOM.")
-        if count > 1:
-            raise TmeError(f"AI selection Reference '{reference}' matches multiple input BOM rows.")
-        row = rows[references.index(reference)]
-        manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
-        if manual_symbol:
-            raise TmeError(
-                f"AI selection Reference '{reference}' conflicts with a manual TME symbol."
-            )
-
-
-def ai_selected_output(
-    row: dict[str, str],
-    symbol: str,
-    token: str,
-    options: dict[str, list[tuple[str, str, str]]],
-) -> dict[str, Any]:
-    """Load and classify one persisted AI-selected product."""
-    selected = load_selected_candidate(
-        symbol,
-        int(row["Qty"]),
-        token,
-        options or None,
-    )
-    status = "candidate_unreviewed"
-    note = "TME symbol selected by the AI; validate all stated requirements."
-    if not options:
-        status = "needs_review"
-        note = "TME symbol selected by the AI, but the footprint has no verified mapping."
-    elif not selected["footprint_match"]:
-        status = "needs_review"
-        note = "TME symbol selected by the AI, but its exact footprint is not confirmed."
-    elif selected["needs_attention"]:
-        status = "needs_attention"
-        note = (
-            f"TME symbol selected by the AI. {selected['attention_note']} "
-            "Validate all stated requirements."
-        )
-    return candidate_output(row, selected, status, note)
-
-
-def enriched_row(
-    row: dict[str, str],
-    token: str,
-    translation_file: Path,
-    ai_selections: Mapping[str, str],
-) -> dict[str, Any]:
-    """Generate helper output for one BOM row."""
-    manual_symbol = row.get("TME_SYMBOL", "").strip() or row.get("TME Symbol", "").strip()
-    if manual_symbol:
-        return {
-            **row,
-            "TME Symbol": manual_symbol,
-            "TME Match Status": "manually_provided",
-            "TME Match Notes": "TME symbol was provided manually and not reviewed by the helper.",
-        }
-    options = load_footprint_options(translation_file, row["Footprint"])
-    ai_symbol = ai_selections.get(row["Reference"].strip())
-    if ai_symbol:
-        return ai_selected_output(row, ai_symbol, token, options)
-    if not options:
-        return {
-            **row,
-            "TME Match Status": "needs_review",
-            "TME Match Notes": (
-                "No verified KiCad-to-TME footprint mapping. "
-                "Use discover-footprint and map-footprint first."
-            ),
-        }
-    if not is_searchable_phrase(row["Value"]):
-        return {
-            **row,
-            "TME Match Status": "needs_review",
-            "TME Match Notes": "BOM value is unspecified or too short for a TME search.",
-        }
-    candidates = search(
-        row["Value"],
-        row["Footprint"],
-        int(row["Qty"]),
-        token,
-        options=options,
-    )
-    if not candidates:
-        return {
-            **row,
-            "TME Match Status": "no_in_stock_match",
-            "TME Match Notes": "No priced in-stock candidate found.",
-        }
-    best, safe = candidates[0], candidates[0]["footprint_match"]
-    status = "candidate_unreviewed"
-    note = "Verify all stated requirements against returned parameters."
-    if not safe:
-        status = "needs_review"
-        note = "No confirmed exact footprint; do not select without review."
-    elif best["needs_attention"]:
-        status = "needs_attention"
-        note = f"{best['attention_note']} Verify all stated requirements."
-    return candidate_output(row, best, status, note)
-
-
-def enrich(
-    input_path: Path,
-    output_path: Path,
-    token: str,
-    translation_file: Path,
-    ai_selection_file: Path | None = None,
-) -> None:
-    rows, headers = bom(input_path)
-    ai_selections = load_ai_selections(ai_selection_file)
-    validate_ai_selection_references(rows, ai_selections)
-    fieldnames = [*headers, *[name for name in ADDED if name not in headers]]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="", buffering=1) as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(enriched_row(row, token, translation_file, ai_selections))
-
-
-def run_discovery(args: argparse.Namespace, access: str) -> None:
-    """Print package-related facets and sample product parameters."""
-    package_names = (
-        "case",
-        "package",
-        "footprint",
-        "housing",
-        "mounting",
-        "diameter",
-        "dimension",
-        "pitch",
-        "height",
-        "number of pins",
-    )
-    facets = search_facets(args.phrase, access)
-    relevant = [
-        facet
-        for facet in facets
-        if any(word in str(facet.get("name", "")).lower() for word in package_names)
-    ]
-    discovered = products(args.phrase, "", access, 20)
-    symbols = [str(product["symbol"]) for product in discovered]
-    product_parameters = details(symbols, access, "/products/parameters", [])
-    samples = []
-    for symbol, item in product_parameters.items():
-        parameters = [
-            parameter
-            for parameter in params(item)
-            if any(word in str(parameter.get("name", "")).lower() for word in package_names)
-        ]
-        samples.append({"symbol": symbol, "parameters": parameters})
-    print(
-        json.dumps(
-            {"parameters": relevant, "sample_products": samples},
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
-
-
-def run_mapping(args: argparse.Namespace, access: str) -> None:
-    """Validate and append one requested footprint mapping."""
-    exact_constraints = [parse_constraint(value) for value in args.constraint]
-    _, unresolved = constraint_filters(search_facets(args.phrase, access), exact_constraints)
-    if unresolved:
-        formatted = ", ".join(f"{parameter}={value}" for parameter, value in unresolved)
-        raise TmeError(f"TME did not expose these exact constraints: {formatted}.")
-    numeric_constraints = [parse_constraint(value) for value in args.numeric_constraint or []]
-    if numeric_constraints:
-        discovered = products(args.phrase, "", access, 100)
-        symbols = [str(product["symbol"]) for product in discovered]
-        parameters = details(symbols, access, "/products/parameters", [])
-        for parameter, expected in numeric_constraints:
-            if not any(
-                has_footprint_option(params(item), [("numeric_mm", parameter, expected)])
-                for item in parameters.values()
-            ):
-                raise TmeError(f"TME did not expose numeric {parameter}={expected}mm.")
-    append_footprint_mapping(
-        args.translation_file,
-        args.kicad_footprint,
-        [
-            *[("exact", parameter, value) for parameter, value in exact_constraints],
-            *[("numeric_mm", parameter, value) for parameter, value in numeric_constraints],
-        ],
-        args.option,
-        args.notes,
-    )
-    print(f"Updated verified footprint mappings in {args.translation_file}")
-
-
-def run_authenticated_command(args: argparse.Namespace, access: str) -> None:
-    """Dispatch a command that requires TME API authentication."""
-    if args.command == "search":
-        candidates = search(args.phrase, args.footprint, args.qty, access, args.limit)
-        print(json.dumps({"candidates": candidates}, ensure_ascii=False, indent=2))
-    elif args.command == "discover-footprint":
-        run_discovery(args, access)
-    elif args.command == "map-footprint":
-        run_mapping(args, access)
-    else:
-        enrich(
-            args.input,
-            args.output,
-            access,
-            args.translation_file,
-            args.ai_selections,
-        )
-        print(f"Wrote validated TME results to {args.output}")
-
-
-def main() -> int:
-    args = arguments()
-    try:
-        if args.command == "record-selection":
-            record_ai_selection(args.file, args.reference, args.symbol)
-            print(f"Recorded AI selection for {args.reference} in {args.file}")
-            return 0
-        token, secret = credentials(args.env_file)
-        run_authenticated_command(args, bearer(token, secret))
-    except TmeError as error:
-        print(f"Error: {error}", file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def photo_url(product: Mapping[str, Any]) -> str:
+    """Use only the API-provided photo, never an agent-generated address."""
+    photo = (product.get("assets") or {}).get("primary_photo") or {}
+    source = photo.get("prime") or photo.get("high_resolution") or ""
+    if source.startswith("//"):
+        return "https:" + source
+    return source if source.startswith("https://") else ""
