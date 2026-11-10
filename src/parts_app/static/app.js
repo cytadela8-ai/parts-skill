@@ -310,7 +310,10 @@ function renderChecklist(row, panel) {
   const body = node("tbody");
   for (const check of validation.checks || []) {
     const tr = node("tr");
-    const requirement = node("td", check.category.replaceAll("_", " "));
+    const requirement = node(
+      "td",
+      check.category === "polarity_pinout" ? "Pinout" : check.category.replaceAll("_", " "),
+    );
     requirement.append(node("small", check.requirement));
     const outcome = node("td");
     outcome.append(badge(check.outcome));

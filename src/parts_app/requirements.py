@@ -210,7 +210,6 @@ PROPERTY_NAMES = {
     "colour": ("technology", ["LED colour", "Colour"]),
     "technology": ("technology", ["Technology"]),
     "dielectric": ("technology", ["Dielectric"]),
-    "polarity": ("polarity_pinout", ["Polarity"]),
     "pinout": ("polarity_pinout", ["Pinout", "Pin configuration"]),
     "number of contacts": ("polarity_pinout", ["Number of contacts"]),
     "type of diode": ("type", ["Type of diode"]),

@@ -92,20 +92,20 @@ def test_numeric_range_is_not_silently_treated_as_its_first_value():
     )
 
 
-def test_irrelevant_led_pinout_sources_cannot_pass_or_be_not_applicable():
+def test_standard_led_does_not_require_a_pinout_check():
     from parts_app.validation import audit_checks
 
     evidence = {
         "bom": {"Value": "LED", "Footprint": "LED_SMD:LED_1206_3216Metric"},
         "product": {"parameters": {"Front": "flat"}},
     }
-    for outcome in ["pass", "not_applicable"]:
+    for outcome in ["pass", "not_applicable", "unknown", "fail"]:
         result = complete_validation()
         check = result.checks[3]
         check.outcome = outcome
         check.sources = ["bom.Footprint", "product.parameters.Front"]
         audit_checks(result, evidence)
-        assert check.outcome == "unknown"
+        assert check.outcome == "not_applicable"
 
 
 def test_generic_component_cannot_inherit_ratings_or_technology_from_supplier():
@@ -197,3 +197,86 @@ def test_validator_cannot_approve_an_explicit_rating_conflict():
     assert verdict == "no_safe_match"
     assert result["confidence"] <= 20
     assert any(c["category"] == "ratings" and c["outcome"] == "fail" for c in result["checks"])
+
+
+@pytest.mark.parametrize(
+    ("reference", "value", "footprint"),
+    [
+        ("D1", "LED", "LED_SMD:LED_1206_3216Metric"),
+        ("C1", "150uF", "Capacitor_SMD:CP_Elec_5x4.5"),
+        ("C1", "100nF", "Capacitor_SMD:C_0805_2012Metric"),
+        ("R1", "10k", "Resistor_SMD:R_0805_2012Metric"),
+        ("L1", "10uH", "Inductor_SMD:L_0805_2012Metric"),
+        ("D1", "1N4148", "Diode_SMD:D_SOD-123"),
+    ],
+)
+def test_standard_two_terminal_components_have_no_pinout_requirement(reference, value, footprint):
+    from parts_app.validation import pinout_scope
+
+    assert pinout_scope({"Reference": reference, "Value": value, "Footprint": footprint}, {}) == (
+        "not_applicable"
+    )
+
+
+@pytest.mark.parametrize(
+    ("reference", "value", "footprint"),
+    [
+        ("Q1", "BC847", "Package_TO_SOT_SMD:SOT-23"),
+        ("Q1", "MOSFET", "Package_TO_SOT_SMD:TO-220-3"),
+        ("U1", "74HC00", "Package_SO:SOIC-14"),
+        ("D1", "LED_RGB", "LED_SMD:LED_RGB_5050-6"),
+        ("RN1", "Resistor array", "Resistor_SMD:R_Array_4x0603"),
+        ("L1", "Coupled inductors", "Inductor_SMD:L_Coupled"),
+        ("D1", "BAV99", "Package_TO_SOT_SMD:SOT-23"),
+    ],
+)
+def test_multi_terminal_devices_still_require_pin_assignment(reference, value, footprint):
+    from parts_app.validation import audit_checks, pinout_scope
+
+    fields = {"Reference": reference, "Value": value, "Footprint": footprint}
+    assert pinout_scope(fields, {}) == "required"
+    result = complete_validation()
+    result.checks[3].outcome = "pass"
+    result.checks[3].sources = ["bom.Footprint", "product.parameters.Mounting"]
+    audit_checks(result, {"bom": fields, "product": {"parameters": {"Mounting": "SMD"}}})
+    assert result.checks[3].outcome == "unknown"
+
+
+def test_multiple_led_colours_are_not_exempted_by_a_generic_led_value():
+    from parts_app.validation import pinout_scope
+
+    assert pinout_scope({"Value": "LED"}, {"No. of colours": "3"}) == "required"
+
+
+def test_two_terminal_policy_clears_only_assembly_warnings_and_keeps_other_concerns():
+    from parts_app.validation import audit_checks
+
+    result = complete_validation()
+    result.checks[3].outcome = "fail"
+    result.likely_bad = True
+    result.uncertainties = ["LED polarity is unknown", "Pinout and footprint are unknown"]
+    audit_checks(result, {"bom": {"Value": "LED"}, "product": {"parameters": {}}})
+    assert result.checks[3].outcome == "not_applicable"
+    assert result.uncertainties == ["Pinout and footprint are unknown"]
+
+
+def test_standard_led_pinout_alone_cannot_produce_attention():
+    row = {
+        "selection": "TEST",
+        "fields": {
+            "Reference": "D1",
+            "Value": "LED",
+            "Footprint": "LED_SMD:LED_1206_3216Metric",
+            "Final Item Count": "1",
+        },
+        "evidence": {"product": product(**{"Case - inch": "1206", "Mounting": "SMD"})},
+    }
+    result = complete_validation("not_applicable")
+    result.checks[3].outcome = "unknown"
+    result.checks[3].evidence = "Missing polarity evidence"
+    result.uncertainties = ["Missing pinout"]
+    with patch("parts_app.procedures.ask", return_value=result):
+        saved, _, verdict = validate_row(row, Mock())
+    assert verdict == "validated_match"
+    assert saved["checks"][3]["outcome"] == "not_applicable"
+    assert saved["uncertainties"] == []

@@ -19,7 +19,7 @@ from parts_app.agents import (
     ask,
 )
 from parts_app.requirements import compare_value, requirement_checks, shortlist_candidates
-from parts_app.validation import audit_checks
+from parts_app.validation import audit_checks, pinout_scope
 
 TME_LOCK = threading.Lock()
 
@@ -137,6 +137,9 @@ def validate_row(row: dict, charge) -> tuple[dict, dict, str]:
         "deterministic_footprint_match": footprint,
         "deterministic_value_check": compare_value(row["fields"], product),
         "application_checks": application_checks,
+        "pinout_scope": pinout_scope(
+            bom_fields(row["fields"]), agent_product(product)["parameters"]
+        ),
     }
     progress.step("Agent checking component compatibility")
     result = ask(

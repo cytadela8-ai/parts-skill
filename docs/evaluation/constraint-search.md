@@ -38,3 +38,9 @@ recovery feedback, pagination and sorting, misleading model passes, and non-appl
 
 API contract: [TME v2 documentation](https://developers.tme.eu/en/api-doc/v2),
 [OpenAPI schema](https://developers.tme.eu/openapi.json).
+
+Subsequent pinout-policy correction: standard two-terminal LEDs, capacitors, resistors,
+inductors and diodes no longer require pinout evidence. The historical LED attention result
+above reflects the earlier policy. Assembly orientation is outside compatibility validation;
+assigned multi-terminal devices still require actual pinout evidence. Regression tests verify
+that pinout alone cannot leave a standard LED in attention.

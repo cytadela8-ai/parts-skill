@@ -60,7 +60,7 @@ retain the selected canonical symbol and existing status. Reimport does not conv
 into original manual choices. Keep enriched status columns when saving previous results.
 
 Full manufacturer part numbers are exact requests; partial identifiers and xxx placeholders are
-family requests. Value, function, polarity, pin arrangement, footprint, mounting and explicitly
+family requests. Value, function, applicable pin arrangement, footprint, mounting and explicitly
 specified technology are exact constraints. Higher ratings are acceptable only for minimum
 requirements. Missing evidence remains unknown.
 
@@ -93,7 +93,12 @@ is not included; missing evidence is surfaced for human review.
 Validation independently compares BOM inputs with downloaded product evidence. Application
 checks override model approval for known package, nominal-value and supported explicit-property
 conflicts. Unsupported passes and missing required pin assignments produce attention; supplier
-ratings do not create BOM requirements. Raw model assessments remain in the saved evidence for
+ratings do not create BOM requirements. The UI calls terminal-assignment checks **Pinout**.
+Standard two-terminal LEDs, capacitors (including polarized capacitors), resistors, inductors
+and diodes use not applicable for pinout. Assembly orientation remains the assembler's concern.
+Transistors, MOSFETs, logic gates, ICs, connectors, RGB LEDs and other multi-terminal parts still
+require pin assignment checks; missing evidence produces attention. Explicit BOM pinout
+requirements are retained. Raw model assessments remain in the saved evidence for
 audit. Historical validations need an explicit rerun to use these rules.
 
 ## Costs and checks

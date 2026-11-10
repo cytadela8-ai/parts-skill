@@ -159,7 +159,7 @@ def find_candidates(fields: dict, plan: SearchPlan, mappings: dict, charge) -> t
             FilterPlan,
             "Select filters from actual parameter names and values for every "
             "specified BOM property supported here. Use Case - inch for chip size "
-            "(LEDs included), mounting, value, technology, type, polarity, pitch, "
+            "(LEDs included), mounting, value, technology, type, required pinout, pitch, "
             "pin count and specified ratings. Do not invent unstated requirements. "
             "Multiple values within one filter are OR; different filters are AND. "
             "Use numeric unit equivalence, never approximate nominal values. "
