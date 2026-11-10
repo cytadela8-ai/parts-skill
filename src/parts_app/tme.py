@@ -198,52 +198,6 @@ def has_footprint_options(
     return any(has_footprint_option(parameters, option) for option in options.values())
 
 
-def constraint_filters(
-    facets: list[dict[str, Any]], constraints: list[tuple[str, str]]
-) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Resolve exact parameter/value labels to TME search filters."""
-    filters: list[tuple[str, str]] = []
-    unresolved: list[tuple[str, str]] = []
-    for index, (parameter, expected) in enumerate(constraints):
-        matched = False
-        for facet in facets:
-            if norm(str(facet.get("name", ""))) != norm(parameter):
-                continue
-            for value in nested(facet, "values"):
-                if norm(str(value.get("value", ""))) != norm(expected):
-                    continue
-                filters.extend(
-                    [
-                        (f"parameters[{index}][id]", str(facet["id"])),
-                        (f"parameters[{index}][values][]", str(value["id"])),
-                    ]
-                )
-                matched = True
-                break
-            if matched:
-                break
-        if not matched:
-            unresolved.append((parameter, expected))
-    return filters, unresolved
-
-
-def package_filter(facets: list[dict[str, Any]], footprint: str) -> list[tuple[str, str]]:
-    expected, names = (
-        norm(footprint),
-        ("case", "package", "footprint", "housing", "mounting"),
-    )
-    for facet in facets:
-        if not any(word in str(facet.get("name", "")).lower() for word in names):
-            continue
-        for item in nested(facet, "values"):
-            if norm(str(item.get("value", ""))) == expected:
-                return [
-                    ("parameters[0][id]", str(facet["id"])),
-                    ("parameters[0][values][]", str(item["id"])),
-                ]
-    return []
-
-
 def common_exact_constraints(
     options: dict[str, list[tuple[str, str, str]]],
 ) -> list[tuple[str, str]]:
@@ -257,43 +211,55 @@ def common_exact_constraints(
     return sorted(set.intersection(*exact_sets))
 
 
-def products(
+def search_catalogue(
     phrase: str,
-    footprint: str,
     token: str,
-    limit: int,
-    options: dict[str, list[tuple[str, str, str]]] | None = None,
-) -> list[dict[str, Any]]:
+    *,
+    category_id: int | None = None,
+    filters: list[tuple[str, str]] | None = None,
+    page: int = 1,
+    limit: int = 100,
+) -> dict:
+    """Read real facets, counters and price-sorted products for one bounded API page."""
     if not is_searchable_phrase(phrase) or len(phrase) > 40:
         raise TmeError("Search phrase must have 2 to 40 characters.")
     if not 1 <= limit <= 100:
         raise TmeError("Search limit must be from 1 to 100.")
-    base = [
+    pairs = [
         ("country", "PL"),
-        ("scope[]", "products"),
-        ("scope[]", "parameters"),
         ("phrase", phrase),
         ("limit", str(limit)),
+        ("page", str(page)),
+        ("scope[]", "products"),
+        ("scope[]", "parameters"),
+        ("scope[]", "counters"),
+        ("sort[property]", "PRICE_FIRST_QUANTITY"),
+        ("sort[direction]", "asc"),
+        ("filter[in_stock]", "true"),
     ]
-    data = get("/products/search", token, base).get("data", {})
-    facets = nested(data, "parameters", "elements")
-    if options:
-        constraints = common_exact_constraints(options)
-        filters, unresolved = constraint_filters(facets, constraints)
-        if unresolved:
-            return []
-    else:
-        filters = package_filter(facets, footprint)
-    if filters:
-        data = get("/products/search", token, [*base, *filters]).get("data", {})
-    found = nested(data, "products", "elements")
-    for page in (2, 3):
-        if len(found) < (page - 1) * limit:
-            break
-        data = get("/products/search", token, [*base, *filters, ("page", str(page))]).get(
-            "data", {}
+    if category_id is not None:
+        pairs.append(("category_id", str(category_id)))
+    return get("/products/search", token, [*pairs, *(filters or [])]).get("data", {})
+
+
+def products(
+    phrase: str,
+    token: str,
+    *,
+    category_id: int,
+    filters: list[tuple[str, str]],
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Load at most three sorted pages, keeping category and filters on every page."""
+    found = []
+    for page in (1, 2, 3):
+        data = search_catalogue(
+            phrase, token, category_id=category_id, filters=filters, page=page, limit=limit
         )
-        found.extend(nested(data, "products", "elements"))
+        batch = nested(data, "products", "elements")
+        found.extend(batch)
+        if len(batch) < limit:
+            break
     return found
 
 
@@ -534,10 +500,13 @@ def search(
     footprint: str,
     quantity: int,
     token: str,
+    *,
     limit: int = 100,
     options: dict[str, list[tuple[str, str, str]]] | None = None,
+    category_id: int,
+    filters: list[tuple[str, str]],
 ) -> list[dict[str, Any]]:
-    found = products(phrase, footprint, token, limit, options)
+    found = products(phrase, token, category_id=category_id, filters=filters, limit=limit)
     symbols = [str(product["symbol"]) for product in found if product.get("symbol")]
     parameter_data = details(symbols, token, "/products/parameters", [])
     price_data = details(

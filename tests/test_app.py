@@ -162,14 +162,16 @@ def test_search_preserves_tentative_candidate(store):
     choice = Choice(symbol="TEST", comment="Tentative", uncertainties=["Package unconfirmed"])
     with (
         patch("parts_app.procedures.ask", side_effect=[plan, choice]),
-        patch("parts_app.procedures.access", return_value="token"),
-        patch("parts_app.tme.search", return_value=[{"symbol": "TEST"}]),
+        patch(
+            "parts_app.sourcing.find_candidates",
+            return_value=({"TEST": {"symbol": "TEST"}}, [{"query": "resistor", "candidates": 1}]),
+        ),
     ):
         symbol, evidence, status = search_row(row, Mock())
     assert symbol == "TEST"
     assert status == "candidate_unreviewed"
     assert evidence["choice"]["uncertainties"]
-    assert len(evidence["queries"]) == 2
+    assert len(evidence["queries"]) == 1
 
 
 def test_web_import_export_and_origin_protection(tmp_path):
@@ -268,7 +270,7 @@ def test_tme_search_examines_bounded_pages():
         {"data": {"products": {"elements": [{"symbol": "last"}]}}},
     ]
     with patch("parts_app.tme.get", side_effect=pages) as get:
-        result = tme.products("resistor", "", "token", 100)
+        result = tme.products("resistor", "token", category_id=1, filters=[], limit=100)
     assert len(result) == 201
     assert get.call_count == 3
     assert ("page", "3") in get.call_args.args[2]

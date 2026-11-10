@@ -77,10 +77,24 @@ order quantity within 25% of the lowest payable PLN line total, then lower total
 All mismatches and commercial concerns must be reported. Final counts initialize once to
 `max(Qty + 1, ceil(Qty * 1.15))`; subsequent edits are retained. Not-needed means count zero.
 
-Search examines up to three queries, three pages per query, with compact model shortlists bounded
-by size. It cannot establish exhaustive availability or a globally lowest price. Empty or incomplete
+Search discovers matching categories, chooses a real category, reads its available parameters,
+then filters and requests results sorted by first-quantity price. Python forces supported exact
+chip-case and nominal-value filters and filters for supported explicit BOM properties, even if
+an agent omits them. A chip's inch and metric codes are checked independently; 0805 and 1206
+are incompatible. Missing parameters remain unknown. Explicit minimum ratings may increase;
+other stated ratings remain exact. Documented footprint alternatives remain allowed.
+
+Empty or conflicting results feed the next category/filter decision. The loop permits up to
+three attempts with three pages each. Search history records categories, filters, rejected
+candidates and recovery reasons. Compact model shortlists are bounded by size. It cannot establish exhaustive availability or a globally lowest price. Empty or incomplete
 searches remain `needs_review` rather than falsely claiming no stock. Automatic PDF/pinout analysis
 is not included; missing evidence is surfaced for human review.
+
+Validation independently compares BOM inputs with downloaded product evidence. Application
+checks override model approval for known package, nominal-value and supported explicit-property
+conflicts. Unsupported passes and missing required pin assignments produce attention; supplier
+ratings do not create BOM requirements. Raw model assessments remain in the saved evidence for
+audit. Historical validations need an explicit rerun to use these rules.
 
 ## Costs and checks
 

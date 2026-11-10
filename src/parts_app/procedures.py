@@ -9,8 +9,17 @@ from typing import Literal
 from pydantic import create_model
 
 from parts_app import progress, tme
-from parts_app.agents import Choice, SearchPlan, Validation, ask
-from parts_app.requirements import compare_value, footprint_conflicts, shortlist_candidates
+from parts_app.agents import (
+    CHOICE_PROMPT,
+    VALIDATION_PROMPT,
+    Check,
+    Choice,
+    SearchPlan,
+    Validation,
+    ask,
+)
+from parts_app.requirements import compare_value, requirement_checks, shortlist_candidates
+from parts_app.validation import audit_checks
 
 TME_LOCK = threading.Lock()
 
@@ -36,32 +45,12 @@ def search_row(row: dict, charge) -> tuple[str, dict, str]:
         {"bom": bom_fields(row["fields"])},
         charge=charge,
     )
-    candidates = {}
-    history = []
+    from parts_app.sourcing import find_candidates
+
     mappings = tme.load_footprint_options(
         Path(__file__).with_name("footprint-translations.csv"), row["fields"]["Footprint"]
     )
-    quantity = int(row["fields"]["Final Item Count"])
-    progress.step("Connecting to TME")
-    progress.activity("Waiting for supplier request slot")
-    with TME_LOCK:
-        token = access()
-        for index, phrase in enumerate(plan.phrases, 1):
-            progress.step(f"Searching TME {index}/{len(plan.phrases)}: {phrase}")
-            found = tme.search(
-                phrase,
-                row["fields"]["Footprint"],
-                quantity,
-                token,
-                limit=100,
-                options=mappings or None,
-            )
-            history.append(
-                {"query": phrase, "candidates": len(found), "coverage": "up to three pages"}
-            )
-            for candidate in found:
-                if not footprint_conflicts(row["fields"], candidate):
-                    candidates[candidate["symbol"]] = candidate
+    candidates, history = find_candidates(bom_fields(row["fields"]), plan, mappings, charge)
     progress.step(f"Comparing {len(candidates)} eligible TME candidates")
     shortlist = []
     for candidate in shortlist_candidates(row["fields"], list(candidates.values())):
@@ -83,15 +72,7 @@ def search_row(row: dict, charge) -> tuple[str, dict, str]:
     progress.step(f"Agent selecting from {len(shortlist)} shortlisted candidates")
     choice = ask(
         choice_type,
-        "Choose one candidate_id from the supplied numbered candidates, or null. "
-        "Do not transcribe or invent a part number. You may choose a tentative component "
-        "even with uncertain compatibility: explain all doubts for separate validation. "
-        "Do not hide likely issues or invent matches. When the footprint is "
-        "unmapped, propose footprint_constraints from actual returned parameter "
-        "labels and values only. Verify case, mounting and geometry against the "
-        "KiCad footprint; never use height for capacitors. Explain footprint "
-        "uncertainty in footprint_comment. Reject known incompatible footprints;"
-        "if footprint evidence is missing you may propose but must state it is uncertain.",
+        CHOICE_PROMPT,
         {
             "bom": bom_fields(row["fields"]),
             "requirements": plan.model_dump(),
@@ -142,43 +123,64 @@ def validate_row(row: dict, charge) -> tuple[dict, dict, str]:
     )
     if row["evidence"].get("mapping_approved"):
         mappings = row["evidence"].get("proposed_mapping") or mappings
-    footprint = bool(mappings) and tme.has_footprint_options(product["parameters"], mappings)
+    application_checks = requirement_checks(bom_fields(row["fields"]), product, mappings)
+    footprint = application_checks[0]["outcome"] != "fail" and (
+        application_checks[0]["outcome"] == "pass"
+        or (bool(mappings) and tme.has_footprint_options(product["parameters"], mappings))
+    )
+    if footprint and application_checks[0]["outcome"] != "fail":
+        application_checks[0]["outcome"] = "pass"
     evidence = {
         "bom": bom_fields(row["fields"]),
         "product": agent_product(product) | {"footprint_match": footprint},
         "mapping": mappings,
         "deterministic_footprint_match": footprint,
         "deterministic_value_check": compare_value(row["fields"], product),
+        "application_checks": application_checks,
     }
     progress.step("Agent checking component compatibility")
     result = ask(
         Validation,
-        "Independently validate the selected component. Confidence 0–100 "
-        "estimates likelihood of compatibility with the BOM. Include checks for type, "
-        "value, all ratings, MPN/family, package, polarity/pinout and commercial risk. "
-        "Cite literal parameter names/values or BOM fields. Each check must include "
-        "category "
-        "type/value/footprint/polarity_pinout/ratings/mpn/technology/commercial. "
-        "Include all eight categories, using not_applicable where justified. For "
-        "pass checks, sources must list actual dot-separated evidence paths, e.g. "
-        "bom.Value or product.parameters.Capacitance. If evidence is "
-        "unavailable use unknown. Say precisely where unsure. "
-        "Confidence measures compatibility: a known technical mismatch means 0-20; "
-        "missing critical evidence means 30-60. 90+ requires supported technical checks. "
-        "Stock/price problems belong only to commercial, not likely_bad. Do not fail a "
-        "technical check solely because no global footprint mapping exists. Unspecified "
-        "ratings are not_applicable, never invented requirements. 3.5V is not equal to 3.6V. "
-        "Do not compare the reference designator with the MPN. Include mapping in sources "
-        "when citing it. "
-        "Mark likely_bad for likely incompatibility. Missing pinout or geometry cannot "
-        "be inferred from package naming. Search-agent commentary is not evidence.",
+        VALIDATION_PROMPT,
         evidence,
         charge=charge,
     )
+    return finalize_validation(result, evidence, product, application_checks)
+
+
+def finalize_validation(result: Validation, evidence: dict, product: dict, checks: list):
+    """Apply authoritative checks and retain the raw model assessment for audit."""
+    footprint = evidence["deterministic_footprint_match"]
     progress.step("Checking agent evidence and saving validation")
+    model_evaluation = result.model_dump()
+    result.confidence = (
+        result.model_confidence if result.model_confidence is not None else result.confidence
+    )
+    result.uncertainties = [
+        note for note in result.uncertainties if not note.startswith("Application confidence cap:")
+    ]
+    audit_checks(result, evidence)
+    for check in checks:
+        if check["outcome"] in {"fail", "unknown"}:
+            for existing in result.checks:
+                if existing.category == check["category"] and existing.outcome == "pass":
+                    existing.outcome = check["outcome"]
+                    existing.evidence = "Application override: " + check["evidence"]
+        result.checks.append(Check(**check))
+    failures = [
+        check
+        for check in result.checks
+        if check.category != "commercial" and check.outcome == "fail"
+    ]
+    if failures:
+        result.likely_bad = True
+    if any(check["outcome"] == "fail" for check in checks):
+        result.comment = "Known incompatibility: " + "; ".join(
+            check["evidence"] for check in checks if check["outcome"] == "fail"
+        )
     verdict = "validated_match"
     outcomes = [check.outcome for check in result.checks]
-    numeric = compare_value(row["fields"], product)
+    numeric = evidence["deterministic_value_check"]
     if numeric["outcome"] == "fail" or any(
         check.outcome == "fail" and check.category != "commercial" for check in result.checks
     ):
@@ -209,10 +211,29 @@ def validate_row(row: dict, charge) -> tuple[dict, dict, str]:
     if not footprint:
         result.uncertainties.append("Application check: exact footprint mapping is unconfirmed.")
     if not checklist_complete(result, evidence):
+        result.checks.append(
+            Check(
+                category="other",
+                requirement="Evidence coverage",
+                outcome="unknown",
+                sources=[],
+                evidence="Checklist categories or evidence references are incomplete.",
+            )
+        )
         result.uncertainties.append(
             "Application check: checklist categories or evidence references "
             "are incomplete; the confidence estimate does not resolve this."
         )
+    if verdict == "needs_review":
+        unresolved = list(
+            dict.fromkeys(
+                c.category.replace("_", "/") for c in result.checks if c.outcome == "unknown"
+            )
+        )
+        if unresolved:
+            result.comment = "Attention: evidence is missing or insufficient for " + "; ".join(
+                unresolved
+            )
     limit = 20 if verdict == "no_safe_match" else 60 if verdict == "needs_review" else 100
     if result.confidence > limit:
         result.uncertainties.append(
@@ -220,7 +241,7 @@ def validate_row(row: dict, charge) -> tuple[dict, dict, str]:
             "deterministic checks or evidence coverage remain unresolved."
         )
         result.confidence = limit
-    return result.model_dump(), product, verdict
+    return result.model_dump() | {"model_evaluation": model_evaluation}, product, verdict
 
 
 class Charge:
@@ -299,6 +320,8 @@ def checklist_complete(result: Validation, evidence: dict) -> bool:
     if not required.issubset({check.category for check in result.checks}):
         return False
     for check in result.checks:
+        if check.outcome == "not_applicable":
+            continue
         if check.outcome == "pass" and not check.sources:
             return False
         for path in check.sources:

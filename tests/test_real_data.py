@@ -66,7 +66,7 @@ def complete_validation(commercial="pass"):
             "commercial",
         ]
     ]
-    checks[2].update(outcome="pass", sources=["product.footprint_match", "mapping.default"])
+    checks[2].update(outcome="pass", sources=["bom.Footprint", "product.footprint_match"])
     checks[-1].update(outcome=commercial)
     return Validation(
         confidence=95, comment="Compatible", uncertainties=[], checks=checks, likely_bad=False
@@ -76,7 +76,7 @@ def complete_validation(commercial="pass"):
 def test_stock_shortage_is_commercial_not_incompatible():
     product = {
         "symbol": "TEST",
-        "parameters": [],
+        "parameters": [{"name": "Resistance", "values": [{"value": "10kΩ"}]}],
         "needs_attention": True,
         "footprint_match": False,
     }
