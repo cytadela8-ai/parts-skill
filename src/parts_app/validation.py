@@ -7,7 +7,7 @@ standard two-terminal parts is outside this compatibility check.
 
 import re
 
-from parts_app.agents import Validation
+from parts_app.agents import Check, Validation
 from parts_app.requirements import scalar
 
 PIN_EVIDENCE = (
@@ -78,7 +78,7 @@ def audit_pinout(result: Validation, evidence: dict):
                 for path in check.sources
                 if path.startswith("product.parameters.")
                 and any(name in path.lower() for name in PIN_EVIDENCE)
-                and evidence_value(evidence, path)
+                and has_evidence(evidence_value(evidence, path))
             ]
             if check.outcome in {"pass", "not_applicable"} and not relevant:
                 check.outcome = "unknown"
@@ -108,31 +108,72 @@ def clear_orientation_warnings(result: Validation):
         result.comment = "Pinout is not applicable for this standard two-terminal component."
 
 
-def audit_checks(result: Validation, evidence: dict):
-    """Downgrade unsupported passes and apply component-specific pin assignment policy."""
-    fields = evidence["bom"]
+def has_evidence(value) -> bool:
+    """Treat zero/false as facts, but null, whitespace and empty collections as absent."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return value is not None
+
+
+def deterministic_support(check: Check, evidence: dict) -> dict | None:
+    """Recover incomplete citations only for independently checked footprint/nominal values."""
+    if check.category not in {"footprint", "value"}:
+        return None
+    checks = [
+        item
+        for item in evidence.get("application_checks", [])
+        if item["category"] == check.category
+    ]
+    if not checks or any(item["outcome"] != "pass" for item in checks):
+        return None
+    return {
+        "sources": list(dict.fromkeys(path for item in checks for path in item["sources"])),
+        "evidence": "; ".join(item["evidence"] for item in checks),
+    }
+
+
+def audit_sources(check: Check, evidence: dict) -> list[str]:
+    """Keep valid supporting citations; explain exactly which evidence side is absent."""
+    valid = [path for path in check.sources if has_evidence(evidence_value(evidence, path))]
+    invalid = [path for path in check.sources if path not in valid]
+    check.sources = valid
+    notes = []
+    if invalid:
+        notes.append(f"{check.category}: ignored unavailable references: " + ", ".join(invalid))
+    missing = []
+    if check.category != "commercial" and not any(
+        path.startswith("bom.") and path.split(".")[1] not in BOM_METADATA for path in valid
+    ):
+        missing.append("a cited BOM requirement")
+    if not any(path.startswith("product.") for path in valid):
+        missing.append("cited supplier evidence")
+    if not missing:
+        return notes
+    supported = deterministic_support(check, evidence)
+    if supported:
+        check.sources = supported["sources"]
+        check.evidence = supported["evidence"]
+        notes.append(
+            f"{check.category}: incomplete agent citations; "
+            "Python independently verified this requirement against the TME parameters."
+        )
+    else:
+        check.outcome = "unknown"
+        check.evidence = "Cannot verify this check: missing " + " and ".join(missing) + "."
+    return notes
+
+
+def audit_checks(result: Validation, evidence: dict) -> list[str]:
+    """Separate citation bookkeeping from compatibility, retaining unresolved requirements."""
     audit_pinout(result, evidence)
+    notes = []
     for check in result.checks:
-        if check.outcome != "pass":
-            continue
-        valid = [path for path in check.sources if evidence_value(evidence, path)]
-        bom = [
-            path
-            for path in valid
-            if path.startswith("bom.") and path.split(".")[1] not in BOM_METADATA
-        ]
-        supplier = [path for path in valid if path.startswith("product.")]
-        if (
-            len(valid) != len(check.sources)
-            or not supplier
-            or (check.category != "commercial" and not bom)
-        ):
-            check.outcome = "unknown"
-            check.evidence = (
-                "Evidence audit: pass lacks a nonempty BOM requirement and "
-                "relevant supplier evidence. Original claim: " + check.evidence
-            )
-    normalize_unspecified(result, fields)
+        if check.outcome == "pass":
+            notes.extend(audit_sources(check, evidence))
+    normalize_unspecified(result, evidence["bom"])
+    return notes
 
 
 def normalize_unspecified(result: Validation, fields: dict):

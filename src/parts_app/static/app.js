@@ -341,6 +341,20 @@ function renderChecklist(row, panel) {
   }
   table.append(body);
   panel.append(table);
+  if (validation.citation_notes?.length) {
+    const details = node("details");
+    details.append(node("summary", "Evidence reference notes"));
+    details.append(
+      node(
+        "p",
+        "Citation formatting issues are listed here; missing evidence appears in the checklist.",
+      ),
+    );
+    const list = node("ul");
+    for (const text of validation.citation_notes) list.append(node("li", text));
+    details.append(list);
+    panel.append(details);
+  }
   const uncertainties = (validation.uncertainties || []).filter(
     (text) => !text.startsWith("Application confidence cap:"),
   );
@@ -642,11 +656,26 @@ function renderMapping(row, panel) {
       ),
     );
     panel.append(
-      button("Accept footprint constraints for this row", async () => {
+      node(
+        "p",
+        "Accept these only after comparing them with the KiCad footprint. Acceptance saves this " +
+          "row's mapping; it does not approve the component or update global mappings. " +
+          "Prior validation and human review are cleared. " +
+          "Run validation afterwards, then review the part again.",
+      ),
+    );
+    const accepted = Boolean(row.evidence.mapping_approved);
+    const accept = button(
+      accepted
+        ? "Footprint constraints accepted for this row"
+        : "Accept footprint constraints for this row",
+      async () => {
         await api(`/api/rows/${row.id}/mapping`, json({ revision: row.revision }));
         await refresh();
-      }),
+      },
     );
+    accept.disabled = accepted;
+    panel.append(accept);
   }
 }
 

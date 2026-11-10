@@ -67,10 +67,25 @@ requirements. Missing evidence remains unknown.
 Verified footprint constraints are AND within an option, OR across options. Capacitors retain the
 original diameter/mounting policy: height is not a matching requirement. This does not establish
 mechanical clearance. Unmapped/custom packages remain reviewable tentative candidates; missing
-geometry or pinout prevents a validated match. Search can propose row-local footprint constraints from returned TME parameters. Inspect them and
-use **Accept footprint constraints for this row** before validation can rely on them. Reusable
-mappings live in `src/parts_app/footprint-translations.csv`. Global mapping editing is not exposed
-in the UI. Never add mappings based solely on similar package names.
+geometry or required pinout prevents a validated match.
+
+Footprint constraints come from two places: reusable rules in
+`src/parts_app/footprint-translations.csv`, and chip codes/mounting derived directly from standard
+KiCad names. For example, `Inductor_SMD:L_0402_1005Metric` requires 0402 inch, 1005 metric and
+SMD mounting. These automatic checks need no manual acceptance. Missing one chip-code parameter
+is acceptable if its equivalent code is confirmed; a conflicting populated code still fails.
+
+For an unmapped footprint, search can propose row-local constraints from returned TME parameters.
+**Accept footprint constraints for this row** checks that the proposal is nonempty, contains no
+height constraints and matches the saved TME parameters. You must first check that those
+parameters actually describe the KiCad land pattern. Matching product properties alone does not
+prove the proposed mapping is sufficient. Acceptance saves an approval flag for that row; the
+next validation uses the proposal instead of the global rules, supplemented by derived chip
+codes and mounting. It does not select/approve a component, fetch new supplier data, update the
+global CSV or rerun validation. It clears prior validation and human review because the evidence
+changed. Run validation after accepting, then review/approve the part again. Editing BOM inputs or changing
+the selected component clears the row's proposal/approval. Global mapping editing is not
+exposed in the UI. Never accept mappings based solely on similar package names.
 
 Stock must cover MOQ/multiple-adjusted quantities. After technical eligibility, prefer the greatest
 order quantity within 25% of the lowest payable PLN line total, then lower total and TME symbol.
@@ -99,7 +114,11 @@ and diodes use not applicable for pinout. Assembly orientation remains the assem
 Transistors, MOSFETs, logic gates, ICs, connectors, RGB LEDs and other multi-terminal parts still
 require pin assignment checks; missing evidence produces attention. Explicit BOM pinout
 requirements are retained. Raw model assessments remain in the saved evidence for
-audit. Historical validations need an explicit rerun to use these rules.
+audit. Invalid extra citations do not invalidate otherwise supported checks; citation notes
+appear separately from compatibility. Zero and false are valid evidence values. Independently
+verified footprint/nominal-value checks can recover missing model citations; unsupported
+requirements remain attention with an explanation of which evidence is missing. Historical
+validations need an explicit rerun to use these rules.
 
 ## Costs and checks
 

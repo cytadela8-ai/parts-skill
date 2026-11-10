@@ -266,4 +266,8 @@ LED colour, current, brightness, voltage and power are not_applicable. Use pinou
 required means actual pin/pad assignment must be evidenced, otherwise unknown. Do not report
 assembly-polarity or orientation doubts as incompatibility for two-terminal parts. Mark likely_bad
 for likely incompatibility. Missing pinout or geometry cannot be inferred from package naming.
-Search-agent commentary is not evidence."""
+Search-agent commentary is not evidence. The sources list must include every evidence path
+cited in a check's comment, including both the BOM requirement and the supporting product field.
+Mapping and application checks are top-level fields: use mapping.default, deterministic_value_check,
+and pinout_scope where present. Never invent product.mapping, product.deterministic_value_check,
+or product.pinout_scope. Do not cite empty optional fields as support."""

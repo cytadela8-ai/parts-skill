@@ -19,7 +19,7 @@ from parts_app.agents import (
     ask,
 )
 from parts_app.requirements import compare_value, requirement_checks, shortlist_candidates
-from parts_app.validation import audit_checks, pinout_scope
+from parts_app.validation import audit_checks, evidence_value, has_evidence, pinout_scope
 
 TME_LOCK = threading.Lock()
 
@@ -162,7 +162,7 @@ def finalize_validation(result: Validation, evidence: dict, product: dict, check
     result.uncertainties = [
         note for note in result.uncertainties if not note.startswith("Application confidence cap:")
     ]
-    audit_checks(result, evidence)
+    citation_notes = audit_checks(result, evidence | {"application_checks": checks})
     for check in checks:
         if check["outcome"] in {"fail", "unknown"}:
             for existing in result.checks:
@@ -244,7 +244,12 @@ def finalize_validation(result: Validation, evidence: dict, product: dict, check
             "deterministic checks or evidence coverage remain unresolved."
         )
         result.confidence = limit
-    return result.model_dump() | {"model_evaluation": model_evaluation}, product, verdict
+    return (
+        result.model_dump()
+        | {"model_evaluation": model_evaluation, "citation_notes": citation_notes},
+        product,
+        verdict,
+    )
 
 
 class Charge:
@@ -323,17 +328,12 @@ def checklist_complete(result: Validation, evidence: dict) -> bool:
     if not required.issubset({check.category for check in result.checks}):
         return False
     for check in result.checks:
-        if check.outcome == "not_applicable":
+        if check.outcome != "pass":
             continue
-        if check.outcome == "pass" and not check.sources:
+        if not check.sources or any(
+            not has_evidence(evidence_value(evidence, path)) for path in check.sources
+        ):
             return False
-        for path in check.sources:
-            value = evidence
-            try:
-                for key in path.split("."):
-                    value = value[int(key)] if isinstance(value, list) else value[key]
-            except (KeyError, IndexError, ValueError, TypeError):
-                return False
     return True
 
 

@@ -125,7 +125,7 @@ def derived_footprint_options(fields: dict, options: dict) -> dict:
     if not options and not constraints:
         return {}
     return {
-        name: list(dict.fromkeys([*option, *constraints]))
+        name: list(dict.fromkeys(tuple(item) for item in [*option, *constraints]))
         for name, option in (options or {"derived": []}).items()
     }
 
